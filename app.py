@@ -40,6 +40,9 @@ from blueprints.compras import bp as compras_bp
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.getenv('DATABASE_PATH') or os.path.join(BASE_DIR, 'instance', 'inventory.db')
 
+# Asegurar que el directorio de la base de datos exista
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+
 _SECRET_KEY = os.getenv('SECRET_KEY')
 if not _SECRET_KEY or _SECRET_KEY.strip() in ('', 'cambiar-por-un-valor-aleatorio'):
     raise RuntimeError(
