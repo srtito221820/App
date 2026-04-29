@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}CC Analitica - {{ proveedor.nombre }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="mb-0"><i class="bi bi-cash-stack"></i> Cuenta Corriente Analitica</h4>
+        <div class="text-muted">{{ proveedor.nombre }}</div>
+    </div>
+    <div>
+        <a href="{{ url_for('cuenta_corriente.cuenta_corriente_list', proveedor_id=proveedor.id) }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> CC Normal
+        </a>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <form method="GET" class="row g-2 align-items-end mb-0">
+            <div class="col-md-3">
+                <label class="form-label small mb-0">Cuenta</label>
+                <select name="cuenta" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">Todas</option>
+                    <option value="JUMAF" {% if cuenta_sel == 'JUMAF' %}selected{% endif %}>JUMAF</option>
+                    <option value="JUMASA" {% if cuenta_sel == 'JUMASA' %}selected{% endif %}>JUMASA</option>
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-3">
+        <div class="card stat-card red">
+            <div class="card-body py-2">
+                <div class="text-muted small">Facturado</div>
+                <div class="h5 mb-0">{{ total_facturado|currency }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card green">
+            <div class="card-body py-2">
+                <div class="text-muted small">Notas de Credito</div>
+                <div class="h5 mb-0">{{ total_nc|currency }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card orange">
+            <div class="card-body py-2">
+                <div class="text-muted small">Notas de Debito</div>
+                <div class="h5 mb-0">{{ total_nd|currency }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card blue">
+            <div class="card-body py-2">
+                <div class="text-muted small">Pagos</div>
+                <div class="h5 mb-0">{{ total_pagos|currency }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <div class="card border-dark">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="text-muted small">SALDO REAL</div>
+                        <div class="small text-muted">Basado en asientos actuales en CC</div>
+                    </div>
+                    <div class="h3 mb-0 {% if saldo_real > 0 %}text-danger{% elif saldo_real < 0 %}text-success{% endif %}">
+                        {{ saldo_real|currency }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card border-warning">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="text-muted small">SALDO ESTIMATIVO</div>
+                        <div class="small text-muted">Si todas las devoluciones pendientes se aceptan</div>
+                    </div>
+                    <div class="h3 mb-0 {% if saldo_estimativo > 0 %}text-danger{% elif saldo_estimativo < 0 %}text-success{% endif %}">
+                        {{ saldo_estimativo|currency }}
+                    </div>
+                </div>
+                <div class="small mt-1">
+                    Pendiente NC: <strong>{{ kg_pendientes|number }} kg</strong> —
+                    impacto estimado (c/IVA):
+                    <strong>{{ monto_pendiente_estimado|currency }}</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if devs_pendientes %}
+<div class="card mb-3 border-warning">
+    <div class="card-header bg-warning-subtle py-2">
+        <i class="bi bi-exclamation-triangle"></i> <strong>Devoluciones pendientes de NC</strong>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Remito</th>
+                    <th>Tela / Color</th>
+                    <th class="text-end">Kg</th>
+                    <th class="text-end">Precio</th>
+                    <th class="text-end">Monto estimado c/IVA</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in devs_pendientes %}
+                {% set kg = (m.cant_kg or 0)|abs %}
+                <tr>
+                    <td>{{ m.fecha.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ m.remito_factura or '-' }}</td>
+                    <td>{{ m.tipo_tela }} / {{ m.color }}</td>
+                    <td class="text-end">{{ kg|number }}</td>
+                    <td class="text-end">{{ (m.precio_sin_iva or 0)|currency }}</td>
+                    <td class="text-end">{{ (kg * (m.precio_sin_iva or 0) * 1.21)|currency }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header bg-white"><strong>Movimientos de CC</strong></div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Cuenta</th>
+                    <th>Tipo</th>
+                    <th>Concepto</th>
+                    <th class="text-end">Debe</th>
+                    <th class="text-end">Haber</th>
+                    <th class="text-end">Saldo</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for l in lineas %}
+                <tr>
+                    <td>{{ l.cc.fecha.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ l.cc.cuenta or '-' }}</td>
+                    <td>
+                        {% if l.tipo == 'Factura' %}<span class="badge bg-danger">Factura</span>
+                        {% elif l.tipo == 'NC' %}<span class="badge bg-success">NC</span>
+                        {% elif l.tipo == 'ND' %}<span class="badge bg-warning text-dark">ND</span>
+                        {% elif l.tipo == 'Pago' %}<span class="badge bg-primary">Pago</span>
+                        {% else %}<span class="badge bg-secondary">{{ l.tipo }}</span>{% endif %}
+                    </td>
+                    <td class="small">
+                        {% if l.cc.numero_comprobante %}<strong>{{ l.cc.numero_comprobante }}</strong>{% endif %}
+                        {{ l.cc.descripcion or (l.cc.tipo or '-') }}
+                    </td>
+                    <td class="text-end">{{ (l.cc.debe or 0)|currency if l.cc.debe else '' }}</td>
+                    <td class="text-end">{{ (l.cc.haber or 0)|currency if l.cc.haber else '' }}</td>
+                    <td class="text-end fw-bold {% if l.saldo > 0 %}text-danger{% elif l.saldo < 0 %}text-success{% endif %}">
+                        {{ l.saldo|currency }}
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not lineas %}
+                <tr><td colspan="7" class="text-center text-muted py-3">Sin movimientos.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

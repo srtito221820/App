@@ -1,0 +1,1438 @@
+{% extends "base.html" %}
+{% block title %}Panel Proveedor - Inventario{% endblock %}
+
+{% block extra_css %}
+<style>
+.collapse-icon { transition: transform 0.2s ease; display: inline-block; }
+[data-bs-toggle="collapse"]:not(.collapsed) .collapse-icon { transform: rotate(90deg); }
+
+/* ── Separacion visual entre modulos ── */
+.panel-section {
+    position: relative;
+    padding-top: 1.5rem;
+    margin-top: 1.5rem;
+}
+.panel-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 95%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--slate-300), transparent);
+}
+.panel-section-label {
+    position: absolute;
+    top: -0.65rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--body-bg, #f4f7fb);
+    padding: 0 1rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--slate-400);
+}
+
+/* Tabs mejoradas */
+.panel-tabs .nav-tabs {
+    border-bottom: 2px solid var(--slate-200);
+    gap: 0.25rem;
+}
+.panel-tabs .nav-tabs .nav-link {
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: var(--slate-500);
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 0.65rem 1.2rem;
+    transition: all 0.2s ease;
+    border-radius: 8px 8px 0 0;
+    background: transparent;
+}
+.panel-tabs .nav-tabs .nav-link:hover {
+    color: var(--slate-700);
+    background: rgba(99, 102, 241, 0.04);
+    border-bottom-color: var(--slate-300);
+}
+.panel-tabs .nav-tabs .nav-link.active {
+    color: var(--indigo-600, #4f46e5);
+    background: white;
+    border-bottom-color: var(--indigo-600, #4f46e5);
+    box-shadow: 0 -2px 8px rgba(99, 102, 241, 0.08);
+}
+.panel-tabs .nav-tabs .nav-link .badge {
+    font-size: 0.7rem;
+    vertical-align: middle;
+    margin-left: 0.3rem;
+}
+
+/* Tarjetas internas con mejor separacion */
+.panel-inner-section {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid var(--slate-200);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    margin-bottom: 1.25rem;
+    overflow: hidden;
+}
+.panel-inner-section .section-header {
+    background: var(--slate-50, #f8fafc);
+    border-bottom: 1px solid var(--slate-200);
+    padding: 0.6rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.panel-inner-section .section-header h6 {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--slate-700);
+}
+.panel-inner-section .section-body {
+    padding: 0;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<h4 class="mb-3">Panel de Proveedor - Carga de Documentos</h4>
+
+<!-- ═══════ FORMULARIO UNIFICADO (siempre visible) ═══════ -->
+<div class="card mb-3 border-0" style="border-radius:12px; box-shadow: 0 2px 12px rgba(79,70,229,0.10); border-top: 3px solid var(--indigo-600, #4f46e5) !important;">
+    <div class="card-header border-0 d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #4f46e5, #6366f1); color:white; border-radius: 9px 9px 0 0;">
+        <strong><i class="bi bi-plus-circle"></i> Nueva Operacion</strong>
+        <small class="text-white-50"><i class="bi bi-info-circle"></i> Los pagos se registran desde el modulo <a href="{{ url_for('pagos.pagos_list') }}" class="text-white fw-bold">Pagos</a>.</small>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('panel.panel_operacion') }}" id="formOp">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <!-- Fila 1: Proveedor + Tipo + Fecha + Comprobante -->
+            <div class="row g-2 mb-2">
+                <div class="col-md-3">
+                    <label class="form-label small mb-1 fw-bold">Proveedor *</label>
+                    <select name="proveedor_id" class="form-select form-select-sm" id="sel_proveedor" required onchange="onProveedorChange()">
+                        <option value="">Seleccionar proveedor...</option>
+                        {% for p in proveedores %}
+                        <option value="{{ p.id }}" data-cuit="{{ p.cuit or '' }}" data-usa-cuentas="{{ 'true' if p.usa_cuentas_asignacion else 'false' }}" {% if proveedor_id == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small mb-1 fw-bold">Tipo de Operacion *</label>
+                    <select name="tipo_operacion" class="form-select form-select-sm" id="tipo_op" required>
+                        <option value="">Seleccionar...</option>
+                        <optgroup label="Anticipos">
+                            <option value="factura_anticipo" {% if tipo_op == 'anticipo' or tipo_op == 'factura_anticipo' %}selected{% endif %}>Factura de Anticipo</option>
+                        </optgroup>
+                        <optgroup label="Facturas / Notas de Credito">
+                            <option value="ingreso_tela" {% if tipo_op == 'ingreso_tela' %}selected{% endif %}>Factura con Ingreso de Tela</option>
+                            <option value="ingreso_tela_anticipo" {% if tipo_op == 'ingreso_tela_anticipo' %}selected{% endif %}>Ingreso de Tela contra Anticipo</option>
+                            <option value="nd" {% if tipo_op == 'nd' %}selected{% endif %}>Nota de Debito</option>
+                        </optgroup>
+                        <optgroup label="Devoluciones">
+                            <option value="nc_devolucion" {% if tipo_op == 'nc_devolucion' %}selected{% endif %}>NC por Devolucion de Tela</option>
+                        </optgroup>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1">Fecha *</label>
+                    <input type="date" name="fecha" class="form-control form-control-sm" required>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1">Nro. Comprobante</label>
+                    <input type="text" name="nro_comprobante" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-2" id="sec_monto">
+                    <label class="form-label small mb-1">Monto ($)</label>
+                    <input type="number" step="0.01" name="monto" class="form-control form-control-sm" id="monto">
+                </div>
+                <div class="col-md-2" id="sec_neto" style="display:none">
+                    <label class="form-label small mb-1">Neto s/IVA ($)</label>
+                    <input type="number" step="0.01" name="neto" class="form-control form-control-sm" id="neto" placeholder="0.00">
+                </div>
+                <div class="col-md-1" id="sec_iva_alic" style="display:none">
+                    <label class="form-label small mb-1">IVA %</label>
+                    <input type="number" step="0.01" name="iva_alicuota" class="form-control form-control-sm" id="iva_alicuota" value="21">
+                </div>
+                <div class="col-md-2" id="sec_bruto" style="display:none">
+                    <label class="form-label small mb-1">Bruto c/IVA ($)</label>
+                    <input type="text" class="form-control form-control-sm bg-light text-end" id="bruto_display" readonly placeholder="0,00">
+                </div>
+                <div class="col-md-1" id="sec_kg_anticipo" style="display:none">
+                    <label class="form-label small mb-1">Kg Anticipo</label>
+                    <input type="number" step="0.01" name="kg_anticipo" class="form-control form-control-sm" id="kg_anticipo" placeholder="0.00">
+                </div>
+                <div class="col-md-2" id="sec_nro_anticipo" style="display:none">
+                    <label class="form-label small mb-1">Nro. Anticipo</label>
+                    <input type="text" name="nro_anticipo" class="form-control form-control-sm" placeholder="ANT-001">
+                </div>
+                <div class="col-md-1">
+                    <label class="form-label small mb-1">Cuenta</label>
+                    <select name="cuenta" class="form-select form-select-sm">
+                        <option value="">-</option>
+                        <option>JUMAF</option>
+                        <option>JUMASA</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Fila 2: Datos de tela (se muestra/oculta segun tipo) -->
+            <div id="sec_tela" style="display:none">
+                <hr class="my-2">
+                <!-- Anticipo/Pedido/Temporada -->
+                <div class="row g-2 mb-2">
+                    <div class="col-md-2">
+                        <label class="form-label small mb-1">Temporada</label>
+                        <select name="temporada" class="form-select form-select-sm">
+                            <option value="">-</option>
+                            {% for t in ['Verano 25-26', 'Invierno 26', 'Verano 26-27', 'Invierno 27'] %}
+                            <option>{{ t }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small mb-1">Movimiento</label>
+                        <select name="movimiento_tipo" class="form-select form-select-sm">
+                            <option>Ingreso</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2" id="sec_anticipo_select" style="display:none">
+                        <label class="form-label small mb-1">Asociar a Anticipo</label>
+                        <select name="anticipo_id" class="form-select form-select-sm" id="sel_anticipo" onchange="cargarPedidos()">
+                            <option value="">Sin anticipo</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2" id="sec_pedido_select" style="display:none">
+                        <label class="form-label small mb-1">Asociar a Pedido</label>
+                        <select name="pedido_id" class="form-select form-select-sm" id="sel_pedido" onchange="cargarLineasPedido()">
+                            <option value="">Sin pedido</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2" id="sec_cuenta_asignacion" style="display:none">
+                        <label class="form-label small mb-1">Cuenta Asignacion</label>
+                        <select name="cuenta_asignacion_id" class="form-select form-select-sm" id="sel_cuenta_asignacion">
+                            <option value="">Sin cuenta</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2" id="sec_add_line">
+                        <label class="form-label small mb-1">&nbsp;</label>
+                        <button type="button" class="btn btn-sm btn-outline-primary w-100" id="btnAddTelaRow"><i class="bi bi-plus-lg"></i> Agregar linea</button>
+                    </div>
+                </div>
+
+                <!-- Tabla multi-linea de tela -->
+                <div class="table-responsive">
+                <table class="table table-sm mb-0" id="telaTable" style="font-size:0.82rem">
+                    <thead>
+                        <tr>
+                            <th style="width:13%">Tipo Tela</th>
+                            <th style="width:11%">Color</th>
+                            <th style="width:7%">Cod Art</th>
+                            <th style="width:7%">Cod Color</th>
+                            <th style="width:8%">Kg</th>
+                            <th style="width:6%">Pzas</th>
+                            <th style="width:7%">Partida</th>
+                            <th style="width:9%">$ s/IVA</th>
+                            <th style="width:9%">$ c/IVA</th>
+                            <th style="width:10%">Subtotal</th>
+                            <th style="width:10%">Sub c/IVA</th>
+                            <th style="width:3%"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="telaBody">
+                        <tr class="tela-row">
+                            <td><select name="tipo_tela[]" class="form-select form-select-sm tela-tipo">
+                                <option value="">-</option>
+                                {% for t in ['FRISA', 'JERSEY', 'RUSTICO', 'Morley', 'RIBB', 'DEPORTIVO', 'JERSEY 30/1'] %}
+                                <option>{{ t }}</option>{% endfor %}
+                            </select></td>
+                            <td><input type="text" name="color[]" class="form-control form-control-sm tela-color"></td>
+                            <td><input type="text" name="cod_art[]" class="form-control form-control-sm"></td>
+                            <td><input type="text" name="cod_color[]" class="form-control form-control-sm"></td>
+                            <td><input type="number" step="0.01" name="cant_kg[]" class="form-control form-control-sm text-end tela-kg"></td>
+                            <td><input type="number" name="piezas[]" class="form-control form-control-sm text-end"></td>
+                            <td><input type="text" name="partida[]" class="form-control form-control-sm"></td>
+                            <td><input type="number" step="0.01" name="precio_sin_iva[]" class="form-control form-control-sm text-end tela-psi"></td>
+                            <td><input type="text" class="form-control form-control-sm text-end bg-light tela-pci-d" readonly><input type="hidden" name="precio_con_iva[]" class="tela-pci"></td>
+                            <td><input type="text" class="form-control form-control-sm text-end bg-light tela-sub-d" readonly><input type="hidden" name="subtotal[]" class="tela-sub"></td>
+                            <td><input type="text" class="form-control form-control-sm text-end bg-light tela-subiva-d" readonly><input type="hidden" name="subtotal_iva[]" class="tela-subiva"></td>
+                            <td></td>
+                        </tr>
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr class="fw-bold">
+                            <td colspan="4" class="text-end">TOTALES:</td>
+                            <td class="text-end" id="totalTelaKg">0.00</td>
+                            <td></td><td></td><td></td><td></td>
+                            <td class="text-end" id="totalTelaSub">$0.00</td>
+                            <td class="text-end" id="totalTelaSubIva">$0.00</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+                </div>
+            </div>
+
+            <!-- Percepciones (nivel factura) -->
+            <div class="row g-2 mt-1" id="percepcionesRow" style="display:none">
+                <div class="col-md-2">
+                    <label class="form-label small mb-1">Percp. IVA</label>
+                    <input type="number" step="0.01" name="percp_iva" class="form-control form-control-sm text-end" value="0">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1">Percp. IIBB</label>
+                    <input type="number" step="0.01" name="percp_iibb" class="form-control form-control-sm text-end" value="0">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <div class="small text-muted">Se suman al total de la factura en Cta. Cte.</div>
+                </div>
+            </div>
+
+            <!-- Fila 3: Observaciones + Submit -->
+            <div class="row g-2 mt-1">
+                <div class="col-md-5">
+                    <label class="form-label small mb-1">Observaciones</label>
+                    <input type="text" name="observaciones" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-4">
+                    <div class="alert alert-light py-1 px-2 mb-0 small" id="hint" style="display:none"></div>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100" id="btnSubmit" disabled>
+                        <i class="bi bi-check-lg"></i> Seleccionar tipo de operacion
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ═══════ VISTAS (solo cuando hay un proveedor seleccionado en la URL) ═══════ -->
+{% if proveedor %}
+<div class="panel-section">
+    <span class="panel-section-label">Historial del proveedor</span>
+</div>
+<div class="panel-tabs mb-3">
+<ul class="nav nav-tabs">
+    <li class="nav-item">
+        <a class="nav-link {% if vista == 'resumen' %}active{% endif %}" href="{{ url_for('panel.panel', proveedor_id=proveedor.id, vista='resumen') }}">
+            <i class="bi bi-grid me-1"></i> Resumen
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if vista == 'cc' %}active{% endif %}" href="{{ url_for('panel.panel', proveedor_id=proveedor.id, vista='cc') }}">
+            <i class="bi bi-bank me-1"></i> Cuenta Corriente <span class="badge bg-secondary">{{ cc_movimientos|length }}</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if vista == 'anticipos' %}active{% endif %}" href="{{ url_for('panel.panel', proveedor_id=proveedor.id, vista='anticipos') }}">
+            <i class="bi bi-cash-stack me-1"></i> Anticipos <span class="badge bg-secondary">{{ anticipos|length }}</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if vista == 'tela' %}active{% endif %}" href="{{ url_for('panel.panel', proveedor_id=proveedor.id, vista='tela') }}">
+            <i class="bi bi-box-arrow-in-down me-1"></i> Ingreso Tela <span class="badge bg-secondary">{{ tela_movimientos|length }}</span>
+        </a>
+    </li>
+</ul>
+</div>
+
+<!-- ──── RESUMEN ──── -->
+{% if vista == 'resumen' %}
+<div class="row mb-4">
+    {% set anticipos_abiertos = anticipos|selectattr('estado', 'eq', 'Abierto')|list %}
+    {% set total_anticipado = anticipos_abiertos|sum(attribute='monto') %}
+    {% set total_entregado_ant = [] %}
+    {% for a in anticipos_abiertos %}{% if total_entregado_ant.append(a.total_valor_entregado()) %}{% endif %}{% endfor %}
+    {% set sum_entregado = total_entregado_ant|sum %}
+    <div class="col-md-3">
+        <div class="card stat-card blue"><div class="card-body">
+            <div class="text-muted small">Saldo Cta. Cte.</div>
+            {% set saldo = proveedor.saldo_cuenta_corriente() %}
+            <div class="fs-4 fw-bold {% if saldo > 0 %}text-danger{% elif saldo < 0 %}text-success{% endif %}">{{ saldo|currency }}</div>
+            <div class="d-flex justify-content-between mt-1" style="font-size:0.75rem">
+                {% set sj = proveedor.saldo_cuenta_corriente('JUMAF') %}
+                {% set sm = proveedor.saldo_cuenta_corriente('JUMASA') %}
+                <span class="{% if sj > 0 %}text-danger{% elif sj < 0 %}text-success{% endif %}">JUMAF: {{ sj|currency }}</span>
+                <span class="{% if sm > 0 %}text-danger{% elif sm < 0 %}text-success{% endif %}">JUMASA: {{ sm|currency }}</span>
+            </div>
+        </div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card orange"><div class="card-body">
+            <div class="text-muted small">Anticipos Abiertos</div>
+            <div class="fs-4 fw-bold">{{ anticipos_abiertos|length }}</div>
+            <div class="small text-muted">Total: {{ total_anticipado|currency }}</div>
+        </div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card green"><div class="card-body">
+            <div class="text-muted small">Entregado vs Anticipado</div>
+            <div class="fs-4 fw-bold">{{ sum_entregado|currency }}</div>
+            <div class="small text-muted">Pendiente: {{ (total_anticipado - sum_entregado)|currency }}</div>
+        </div></div>
+    </div>
+    {% set total_kg_pedidos = anticipos_abiertos|sum(attribute='cant_kg') %}
+    {% set total_kg_entregados_list = [] %}
+    {% for a in anticipos_abiertos %}{% if total_kg_entregados_list.append(a.total_kg_entregados()) %}{% endif %}{% endfor %}
+    {% set total_kg_entregados = total_kg_entregados_list|sum %}
+    {% set total_kg_pendientes = total_kg_pedidos - total_kg_entregados %}
+    <div class="col-md-3">
+        <div class="card stat-card red"><div class="card-body">
+            <div class="text-muted small">Kg Pedido vs Ingresado</div>
+            <div class="fs-4 fw-bold">{{ total_kg_entregados|number }} kg</div>
+            <div class="d-flex justify-content-between mt-1" style="font-size:0.75rem">
+                <span class="text-muted">Pedido: {{ total_kg_pedidos|number }} kg</span>
+                <span class="{% if total_kg_pendientes > 0 %}text-danger{% else %}text-success{% endif %} fw-bold">Pend: {{ total_kg_pendientes|number }} kg</span>
+            </div>
+        </div></div>
+    </div>
+</div>
+
+<!-- Anticipos abiertos resumen -->
+{% if anticipos_abiertos %}
+<div class="panel-inner-section">
+    <div class="section-header"><h6><i class="bi bi-cash-stack me-1"></i> Anticipos Abiertos</h6></div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead><tr>
+                <th>Nro</th><th>Fecha</th><th>Factura</th>
+                <th class="text-end">Monto</th>
+                <th class="text-end">Kg Anticipo</th>
+                <th class="text-end">Kg Entregados</th>
+                <th class="text-end">Kg Pendientes</th>
+                <th class="text-end">$ Entregado</th>
+                <th class="text-end">$ Pendiente</th>
+                <th class="text-end">Avance</th><th></th>
+            </tr></thead>
+            <tbody>
+            {% for a in anticipos_abiertos %}
+            {% set pend = a.saldo_pendiente() %}
+            {% set kg_ent = a.total_kg_entregados() %}
+            {% set kg_pend = a.kg_pendientes() %}
+            {% set pct = ((a.total_valor_entregado() / a.monto * 100) if a.monto > 0 else 0)|round(1) %}
+            <tr>
+                <td class="fw-bold">{{ a.numero }}</td>
+                <td>{{ a.fecha.strftime('%d/%m/%Y') }}</td>
+                <td>{{ a.numero_factura or '-' }}</td>
+                <td class="text-end">{{ a.monto|currency }}</td>
+                <td class="text-end">{{ (a.cant_kg or 0)|number }} kg</td>
+                <td class="text-end text-success">{{ kg_ent|number }} kg</td>
+                <td class="text-end {% if kg_pend > 0 %}text-danger{% endif %} fw-bold">{{ kg_pend|number }} kg</td>
+                <td class="text-end text-success">{{ a.total_valor_entregado()|currency }}</td>
+                <td class="text-end {% if pend > 0 %}text-danger{% endif %} fw-bold">{{ pend|currency }}</td>
+                <td class="text-end" style="width:120px">
+                    <div class="d-flex align-items-center">
+                        <div class="progress flex-grow-1 me-1" style="height:6px"><div class="progress-bar {% if pct>=100 %}bg-success{% endif %}" style="width:{{ [pct,100]|min }}%"></div></div>
+                        <small>{{ pct }}%</small>
+                    </div>
+                </td>
+                <td>
+                    <form method="POST" action="{{ url_for('panel.panel_anticipo_cerrar', id=a.id) }}" class="d-inline" onsubmit="return confirm('Cerrar anticipo?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-sm btn-outline-success py-0"><i class="bi bi-check-lg"></i></button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Cuentas de Asignacion resumen -->
+{% if proveedor.usa_cuentas_asignacion and cuentas_asignacion_resumen %}
+<div class="panel-inner-section">
+    <div class="section-header">
+        <h6><i class="bi bi-journal-text me-1"></i> Cuentas de Asignacion Activas</h6>
+        <span class="text-muted small">{{ cuentas_asignacion_resumen|length }} cuenta(s)</span>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead><tr>
+                <th>Anticipo</th><th>Cuenta</th><th>Tipo Tela</th>
+                <th class="text-end">Kg Asig.</th><th class="text-end">Kg Entreg.</th><th class="text-end">Kg Pend.</th>
+                <th class="text-end">$ Asig.</th><th class="text-end">$ Pend.</th>
+            </tr></thead>
+            <tbody>
+            {% for ca in cuentas_asignacion_resumen %}
+            {% set ca_kp = ca.kg_pendientes() %}
+            {% set ca_sp = ca.saldo_pendiente() %}
+            <tr>
+                <td><span class="badge bg-info">{{ ca.anticipo.numero }}</span></td>
+                <td class="fw-bold">{{ ca.numero }}</td>
+                <td>{{ ca.tipo_tela }}</td>
+                <td class="text-end">{{ ca.cant_kg|number }}</td>
+                <td class="text-end text-success">{{ ca.kg_entregados()|number }}</td>
+                <td class="text-end {% if ca_kp > 0 %}text-danger{% endif %} fw-bold">{{ ca_kp|number }}</td>
+                <td class="text-end">{{ ca.monto|currency }}</td>
+                <td class="text-end {% if ca_sp > 0 %}text-danger{% endif %} fw-bold">{{ ca_sp|currency }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Ultimos movimientos CC -->
+<div class="panel-inner-section">
+    <div class="section-header">
+        <h6><i class="bi bi-bank me-1"></i> Ultimos movimientos Cta. Cte.</h6>
+        <a href="{{ url_for('panel.panel', proveedor_id=proveedor.id, vista='cc') }}" class="btn btn-sm btn-outline-primary">Ver todos</a>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead><tr><th>Fecha</th><th>Cuenta</th><th>Tipo</th><th>Comprobante</th><th>Descripcion</th><th class="text-end">Debe</th><th class="text-end">Haber</th></tr></thead>
+            <tbody>
+            {% for m in cc_movimientos[-10:] %}
+            <tr>
+                <td>{{ m.fecha.strftime('%d/%m/%Y') }}</td>
+                <td>{% if m.cuenta %}<span class="badge {% if m.cuenta == 'JUMAF' %}bg-primary{% else %}bg-info{% endif %}">{{ m.cuenta }}</span>{% else %}-{% endif %}</td>
+                <td>
+                    {% if m.tipo == 'Factura' %}<span class="badge bg-danger">Factura</span>
+                    {% elif m.tipo == 'Pago' %}<span class="badge bg-success">Pago</span>
+                    {% elif m.tipo == 'Adelanto' %}<span class="badge bg-info">Adelanto</span>
+                    {% elif m.tipo == 'Nota de Credito' %}<span class="badge bg-warning text-dark">NC</span>
+                    {% elif m.tipo == 'Nota de Debito' %}<span class="badge bg-secondary">ND</span>
+                    {% else %}<span class="badge bg-light text-dark">{{ m.tipo }}</span>{% endif %}
+                </td>
+                <td>{{ m.numero_comprobante or '-' }}</td>
+                <td>{{ m.descripcion or '-' }}</td>
+                <td class="text-end">{% if m.debe %}{{ m.debe|currency }}{% endif %}</td>
+                <td class="text-end">{% if m.haber %}{{ m.haber|currency }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+            {% if not cc_movimientos %}<tr><td colspan="7" class="text-center text-muted py-2">Sin movimientos</td></tr>{% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ──── CTA CORRIENTE ──── -->
+{% elif vista == 'cc' %}
+<div class="mb-2 text-end">
+    <a href="{{ url_for('exportar.exportar_cc', proveedor_id=proveedor.id) }}" class="btn btn-sm btn-outline-success">
+        <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+    </a>
+</div>
+<div class="panel-inner-section">
+    <div class="section-body">
+        <table class="table table-sm table-hover mb-0">
+            <thead><tr><th>Fecha</th><th>Cuenta</th><th>Tipo</th><th>Comprobante</th><th>Descripcion</th><th class="text-end">Debe</th><th class="text-end">Haber</th><th class="text-end">Saldo</th><th></th></tr></thead>
+            <tbody>
+            {% for m in cc_movimientos %}
+            <tr>
+                <td>{{ m.fecha.strftime('%d/%m/%Y') }}</td>
+                <td>{% if m.cuenta %}<span class="badge {% if m.cuenta == 'JUMAF' %}bg-primary{% else %}bg-info{% endif %}">{{ m.cuenta }}</span>{% else %}-{% endif %}</td>
+                <td>
+                    {% if m.tipo == 'Factura' %}<span class="badge bg-danger">Factura</span>
+                    {% elif m.tipo == 'Pago' %}<span class="badge bg-success">Pago</span>
+                    {% elif m.tipo == 'Adelanto' %}<span class="badge bg-info">Adelanto</span>
+                    {% elif m.tipo == 'Nota de Credito' %}<span class="badge bg-warning text-dark">NC</span>
+                    {% elif m.tipo == 'Nota de Debito' %}<span class="badge bg-secondary">ND</span>
+                    {% else %}<span class="badge bg-light text-dark">{{ m.tipo }}</span>{% endif %}
+                </td>
+                <td>{{ m.numero_comprobante or '-' }}</td>
+                <td>{{ m.descripcion or '-' }}</td>
+                <td class="text-end">{% if m.debe %}{{ m.debe|currency }}{% endif %}</td>
+                <td class="text-end">{% if m.haber %}{{ m.haber|currency }}{% endif %}</td>
+                <td class="text-end fw-bold {% if saldo_acumulado[loop.index0] > 0 %}text-danger{% elif saldo_acumulado[loop.index0] < 0 %}text-success{% endif %}">
+                    {{ saldo_acumulado[loop.index0]|currency }}
+                </td>
+                <td class="text-nowrap">
+                    <a href="{{ url_for('panel.panel_cc_editar', id=m.id) }}" class="btn btn-sm btn-outline-primary py-0" title="Editar"><i class="bi bi-pencil"></i></a>
+                    <form method="POST" action="{{ url_for('panel.panel_cc_eliminar', id=m.id) }}" class="d-inline" onsubmit="return confirm('Eliminar este movimiento?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-sm btn-outline-danger py-0" title="Eliminar"><i class="bi bi-trash"></i></button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not cc_movimientos %}<tr><td colspan="9" class="text-center text-muted py-3">Sin movimientos</td></tr>{% endif %}
+            </tbody>
+            {% if cc_movimientos %}
+            <tfoot>
+                <tr class="table-light fw-bold">
+                    <td colspan="5" class="text-end">TOTALES:</td>
+                    <td class="text-end">{{ cc_movimientos|sum(attribute='debe')|currency }}</td>
+                    <td class="text-end">{{ cc_movimientos|sum(attribute='haber')|currency }}</td>
+                    <td class="text-end">{{ saldo_acumulado[-1]|currency }}</td>
+                    <td></td>
+                </tr>
+                {% set saldo_jumaf = proveedor.saldo_cuenta_corriente('JUMAF') %}
+                {% set saldo_jumasa = proveedor.saldo_cuenta_corriente('JUMASA') %}
+                <tr class="table-light small">
+                    <td colspan="5" class="text-end">Saldo JUMAF:</td>
+                    <td colspan="2"></td>
+                    <td class="text-end fw-bold {% if saldo_jumaf > 0 %}text-danger{% elif saldo_jumaf < 0 %}text-success{% endif %}">{{ saldo_jumaf|currency }}</td>
+                    <td></td>
+                </tr>
+                <tr class="table-light small">
+                    <td colspan="5" class="text-end">Saldo JUMASA:</td>
+                    <td colspan="2"></td>
+                    <td class="text-end fw-bold {% if saldo_jumasa > 0 %}text-danger{% elif saldo_jumasa < 0 %}text-success{% endif %}">{{ saldo_jumasa|currency }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+</div>
+
+<!-- ──── ANTICIPOS ──── -->
+{% elif vista == 'anticipos' %}
+<div class="mb-2 text-end">
+    <a href="{{ url_for('exportar.exportar_anticipos', proveedor_id=proveedor.id) }}" class="btn btn-sm btn-outline-success">
+        <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+    </a>
+</div>
+<div class="accordion" id="accordionAnticipos">
+{% for a in anticipos %}
+{% set entregado = a.total_valor_entregado() %}
+{% set pend = a.saldo_pendiente() %}
+{% set kg_ent = a.total_kg_entregados() %}
+{% set kg_pend = a.kg_pendientes() %}
+{% set pct = ((entregado / a.monto * 100) if a.monto > 0 else 0)|round(1) %}
+{% set pct_display = [pct, 999.9]|min %}
+{% set pedidos_list = a.pedidos.all() %}
+{% set movs = a.movimientos.order_by('fecha').all() %}
+{% set exceso_kg = kg_ent > (a.cant_kg or 0) and (a.cant_kg or 0) > 0 %}
+{% set exceso_monto = entregado > a.monto and a.monto > 0 %}
+
+<div class="card mb-2">
+    <!-- Header clickeable con resumen compacto -->
+    <div class="card-header bg-white p-0">
+        <div class="d-flex align-items-center">
+            <button class="btn btn-link text-decoration-none text-dark flex-grow-1 text-start p-2 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#anticipo_{{ a.id }}">
+                <div class="d-flex align-items-center justify-content-between w-100">
+                    <div>
+                        <i class="bi bi-chevron-right me-1 collapse-icon"></i>
+                        <strong>{{ a.numero }}</strong>
+                        <span class="text-muted ms-2">{{ a.fecha.strftime('%d/%m/%Y') }}</span>
+                        {% if a.numero_factura %}<span class="text-muted ms-1">| {{ a.numero_factura }}</span>{% endif %}
+                        {% if a.estado == 'Abierto' %}<span class="badge bg-warning text-dark ms-2">Abierto</span>
+                        {% else %}<span class="badge bg-success ms-2">Cerrado</span>{% endif %}
+                    </div>
+                    <div class="d-flex align-items-center gap-3 me-2">
+                        {% if exceso_kg or exceso_monto %}<span class="badge bg-danger"><i class="bi bi-exclamation-triangle-fill"></i> Excedido</span>{% endif %}
+                        <span class="small"><strong>{{ a.monto|currency }}</strong></span>
+                        <span class="small">{{ (a.cant_kg or 0)|number }} kg</span>
+                        <span class="small {% if exceso_kg %}text-danger fw-bold{% else %}text-success{% endif %}">{{ kg_ent|number }} kg entr.</span>
+                        <span class="small {% if kg_pend > 0 %}text-danger{% elif kg_pend < 0 %}text-danger fw-bold{% endif %} fw-bold">{{ kg_pend|number }} kg pend.</span>
+                        <span class="small">{{ pedidos_list|length }} pedido{{ 's' if pedidos_list|length != 1 else '' }}</span>
+                        <div class="progress" style="width:80px;height:6px"><div class="progress-bar {% if exceso_kg or exceso_monto %}bg-danger{% elif pct>=100 %}bg-success{% endif %}" style="width:{{ [pct,100]|min }}%"></div></div>
+                        <span class="small fw-bold">{{ pct_display }}%</span>
+                    </div>
+                </div>
+            </button>
+            <div class="d-flex gap-1 me-2">
+                <a href="{{ url_for('panel.panel_anticipo_editar', id=a.id) }}" class="btn btn-sm btn-outline-primary py-0"><i class="bi bi-pencil"></i></a>
+                {% if a.estado == 'Abierto' %}
+                <form method="POST" action="{{ url_for('panel.panel_anticipo_cerrar', id=a.id) }}" class="d-inline" onsubmit="return confirm('Cerrar?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-outline-success py-0"><i class="bi bi-check-lg"></i></button>
+                </form>
+                {% endif %}
+                <form method="POST" action="{{ url_for('panel.panel_anticipo_eliminar', id=a.id) }}" class="d-inline" onsubmit="return confirm('Eliminar anticipo {{ a.numero }}?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-outline-danger py-0"><i class="bi bi-trash"></i></button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenido colapsable -->
+    <div id="anticipo_{{ a.id }}" class="collapse" data-bs-parent="#accordionAnticipos">
+        <div class="card-body pt-2">
+            <!-- Alertas de exceso -->
+            {% if exceso_kg %}
+            <div class="alert alert-danger py-1 mb-2 small">
+                <i class="bi bi-exclamation-triangle-fill"></i> <strong>EXCESO DE KG:</strong> Se entregaron {{ kg_ent|number }} kg pero el anticipo es por {{ (a.cant_kg or 0)|number }} kg. Exceso: <strong>{{ (kg_ent - (a.cant_kg or 0))|number }} kg</strong>
+            </div>
+            {% endif %}
+            {% if exceso_monto %}
+            <div class="alert alert-danger py-1 mb-2 small">
+                <i class="bi bi-exclamation-triangle-fill"></i> <strong>EXCESO DE IMPORTE:</strong> Se entregaron {{ entregado|currency }} pero el anticipo es por {{ a.monto|currency }}. Exceso: <strong>{{ (entregado - a.monto)|currency }}</strong>
+            </div>
+            {% endif %}
+
+            <!-- Stats -->
+            <div class="row text-center mb-0 p-2" style="background: var(--slate-50); border-radius: 8px;">
+                <div class="col-md-2"><div class="text-muted small">Monto</div><div class="fs-5 fw-bold">{{ a.monto|currency }}</div></div>
+                <div class="col-md-2"><div class="text-muted small">Kg Anticipo</div><div class="fs-5 fw-bold">{{ (a.cant_kg or 0)|number }} kg</div></div>
+                <div class="col-md-2"><div class="text-muted small">Kg Entregados</div><div class="fs-5 fw-bold {% if exceso_kg %}text-danger{% else %}text-success{% endif %}">{{ kg_ent|number }} kg</div></div>
+                <div class="col-md-2"><div class="text-muted small">Kg Pendientes</div><div class="fs-5 fw-bold {% if kg_pend < 0 %}text-danger{% elif kg_pend > 0 %}text-warning{% endif %}">{{ kg_pend|number }} kg</div></div>
+                <div class="col-md-2"><div class="text-muted small">$ Entregado</div><div class="fs-5 fw-bold {% if exceso_monto %}text-danger{% else %}text-success{% endif %}">{{ entregado|currency }}</div><div class="text-muted small">Pendiente: <span class="{% if pend < 0 %}text-danger{% elif pend > 0 %}text-warning{% endif %} fw-bold">{{ pend|currency }}</span></div></div>
+                <div class="col-md-2"><div class="text-muted small">Avance</div><div class="fs-5 fw-bold {% if exceso_kg or exceso_monto %}text-danger{% endif %}">{{ pct_display }}%</div>
+                    <div class="progress mt-1" style="height:6px"><div class="progress-bar {% if exceso_kg or exceso_monto %}bg-danger{% elif pct>=100 %}bg-success{% endif %}" style="width:{{ [pct,100]|min }}%"></div></div>
+                </div>
+            </div>
+
+            <!-- CUENTAS DE ASIGNACION -->
+            {% if proveedor.usa_cuentas_asignacion %}
+            {% set ctas = a.cuentas_asignacion.all() %}
+            {% if ctas %}
+            <div class="panel-inner-section mt-3">
+                <div class="section-header">
+                    <h6><i class="bi bi-journal-text me-1"></i> Cuentas de Asignacion ({{ ctas|length }})</h6>
+                    <a href="{{ url_for('anticipos.anticipo_detalle', id=a.id) }}" class="btn btn-sm btn-outline-info py-0">Gestionar</a>
+                </div>
+                <div class="section-body">
+                <table class="table table-sm mb-0" style="font-size:0.85rem">
+                    <thead><tr>
+                        <th>Cuenta</th><th>Tipo Tela</th>
+                        <th class="text-end">Kg Asig.</th><th class="text-end">Kg Entreg.</th><th class="text-end">Kg Pend.</th>
+                        <th class="text-end">$ Asig.</th><th class="text-end">$ Pend.</th>
+                    </tr></thead>
+                    <tbody>
+                    {% for ca in ctas %}
+                    {% set ca_kp = ca.kg_pendientes() %}
+                    {% set ca_sp = ca.saldo_pendiente() %}
+                    <tr>
+                        <td class="fw-bold">{{ ca.numero }}</td><td>{{ ca.tipo_tela }}</td>
+                        <td class="text-end">{{ ca.cant_kg|number }}</td>
+                        <td class="text-end text-success">{{ ca.kg_entregados()|number }}</td>
+                        <td class="text-end {% if ca_kp > 0 %}text-danger{% endif %} fw-bold">{{ ca_kp|number }}</td>
+                        <td class="text-end">{{ ca.monto|currency }}</td>
+                        <td class="text-end {% if ca_sp > 0 %}text-danger{% endif %} fw-bold">{{ ca_sp|currency }}</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+            </div>
+            {% elif a.estado == 'Abierto' %}
+            <div class="panel-inner-section mt-3">
+                <div class="section-header">
+                    <h6><i class="bi bi-journal-text me-1"></i> Cuentas de Asignacion</h6>
+                    <a href="{{ url_for('anticipos.anticipo_detalle', id=a.id) }}" class="btn btn-sm btn-outline-primary py-0"><i class="bi bi-plus-lg"></i> Agregar cuentas</a>
+                </div>
+                <div class="section-body p-3 text-center text-muted small">Sin cuentas de asignacion</div>
+            </div>
+            {% endif %}
+            {% endif %}
+
+            <!-- PEDIDOS -->
+            {% if pedidos_list or a.estado == 'Abierto' %}
+            <div class="panel-inner-section mt-3">
+                <div class="section-header">
+                    <h6><i class="bi bi-cart3 me-1"></i> Pedidos ({{ pedidos_list|length }})</h6>
+                    {% if a.estado == 'Abierto' %}
+                    <a href="{{ url_for('pedidos.pedido_nuevo', anticipo_id=a.id) }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo Pedido</a>
+                    {% endif %}
+                </div>
+                <div class="section-body">
+
+                {% if pedidos_list %}
+                {% set total_kg_ped = a.total_kg_pedidos() %}
+                {% set total_val_ped = a.total_valor_pedidos() %}
+                <div class="row text-center mb-2">
+                    <div class="col-md-3"><div class="small text-muted">Kg Pedidos / Anticipo</div><div class="fw-bold {% if total_kg_ped > (a.cant_kg or 0) %}text-danger{% endif %}">{{ total_kg_ped|number }} / {{ (a.cant_kg or 0)|number }} kg</div></div>
+                    <div class="col-md-3"><div class="small text-muted">$ Pedidos / Anticipo</div><div class="fw-bold {% if total_val_ped > a.monto %}text-danger{% endif %}">{{ total_val_ped|currency }} / {{ a.monto|currency }}</div></div>
+                    <div class="col-md-3"><div class="small text-muted">Kg Disponibles p/Pedir</div><div class="fw-bold">{{ ((a.cant_kg or 0) - total_kg_ped)|number }} kg</div></div>
+                    <div class="col-md-3"><div class="small text-muted">$ Disponible p/Pedir</div><div class="fw-bold">{{ (a.monto - total_val_ped)|currency }}</div></div>
+                </div>
+                {% endif %}
+
+                {% for p in pedidos_list %}
+                <div class="card mb-2 border-start border-primary border-3">
+                    <div class="card-header bg-light py-1 d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <button class="btn btn-sm btn-link text-decoration-none p-0 me-2 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#pedido_{{ p.id }}">
+                                <i class="bi bi-chevron-right collapse-icon"></i>
+                            </button>
+                            <strong>{{ p.numero }}</strong>
+                            <span class="text-muted ms-2">{{ p.fecha.strftime('%d/%m/%Y') }}</span>
+                            {% if p.estado == 'Pendiente' %}<span class="badge bg-warning text-dark ms-1">Pendiente</span>
+                            {% elif p.estado == 'Parcial' %}<span class="badge bg-info ms-1">Parcial</span>
+                            {% else %}<span class="badge bg-success ms-1">Completo</span>{% endif %}
+                            <span class="text-muted ms-2">{{ p.total_kg()|number }} kg | {{ p.total_valor()|currency }}</span>
+                        </div>
+                        <div>
+                            <a href="{{ url_for('pedidos.pedido_editar', id=p.id) }}" class="btn btn-sm btn-outline-primary py-0"><i class="bi bi-pencil"></i></a>
+                            <a href="{{ url_for('pedidos.pedido_detalle', id=p.id) }}" class="btn btn-sm btn-outline-info py-0"><i class="bi bi-eye"></i></a>
+                            <form method="POST" action="{{ url_for('pedidos.pedido_eliminar', id=p.id) }}" class="d-inline" onsubmit="return confirm('Eliminar pedido {{ p.numero }}?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button class="btn btn-sm btn-outline-danger py-0"><i class="bi bi-trash"></i></button>
+                            </form>
+                        </div>
+                    </div>
+                    <div id="pedido_{{ p.id }}" class="collapse">
+                        <div class="card-body py-2 px-3">
+                            <table class="table table-sm mb-0" style="font-size:0.85rem">
+                                <thead><tr><th>Tipo Tela</th><th>Color</th><th>Cod Art</th><th class="text-end">Kg Pedido</th><th class="text-end">Kg Entreg.</th><th class="text-end">Kg Pend.</th><th class="text-end">$/kg</th><th class="text-end">Subtotal</th></tr></thead>
+                                <tbody>
+                                {% for d in p.detalles.all() %}
+                                {% set ke = d.kg_entregados() %}
+                                {% set kp = d.kg_pendientes() %}
+                                <tr>
+                                    <td>{{ d.tipo_tela }}</td><td>{{ d.color }}</td><td>{{ d.cod_art or '-' }}</td>
+                                    <td class="text-end">{{ d.cant_kg|number }}</td>
+                                    <td class="text-end {% if ke > d.cant_kg %}text-danger fw-bold{% elif ke > 0 %}text-success{% endif %}">{{ ke|number }}</td>
+                                    <td class="text-end {% if kp > 0 %}text-danger{% elif kp == 0 and ke > 0 %}text-success{% endif %}">{{ kp|number }}</td>
+                                    <td class="text-end">{{ d.precio_unitario|currency }}</td>
+                                    <td class="text-end">{{ d.subtotal|currency }}</td>
+                                </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                            {% set kg_e = p.kg_entregados() %}
+                            {% set kg_p = p.kg_pendientes() %}
+                            <div class="d-flex justify-content-between mt-1 small">
+                                <span>Entregado: <strong class="text-success">{{ kg_e|number }} kg</strong> | {{ p.valor_entregado()|currency }}</span>
+                                <span>Pendiente: <strong class="{% if kg_p > 0 %}text-danger{% endif %}">{{ kg_p|number }} kg</strong> | {{ p.valor_pendiente()|currency }}</span>
+                            </div>
+
+                            <!-- Facturas/Entregas asignadas a este pedido -->
+                            {% set entregas_pedido = p.movimientos.all() %}
+                            {% if entregas_pedido %}
+                            <div class="mt-2 pt-2 border-top">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="small fw-bold text-muted"><i class="bi bi-receipt me-1"></i>Facturas / Remitos asignados</span>
+                                    <span class="small text-muted">{{ entregas_pedido|length }} entrega{{ 's' if entregas_pedido|length != 1 else '' }}</span>
+                                </div>
+                                <table class="table table-sm table-bordered mb-0" style="font-size:0.8rem">
+                                    <thead class="table-light"><tr><th>Fecha</th><th>Remito/Factura</th><th>Tipo Tela</th><th>Color</th><th class="text-end">Kg</th><th class="text-end">Sub c/IVA</th></tr></thead>
+                                    <tbody>
+                                    {% for me in entregas_pedido %}
+                                    <tr>
+                                        <td>{{ me.fecha.strftime('%d/%m/%Y') }}</td>
+                                        <td class="fw-bold">{{ me.remito_factura or '-' }}</td>
+                                        <td>{{ me.tipo_tela }}</td>
+                                        <td>{{ me.color }}</td>
+                                        <td class="text-end">{{ me.cant_kg|number }}</td>
+                                        <td class="text-end">{{ me.subtotal_iva|currency }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Entregas/Facturas -->
+            {% if movs %}
+            <div class="panel-inner-section mt-3">
+                <div class="section-header">
+                    <h6><i class="bi bi-truck me-1"></i> Entregas / Facturas</h6>
+                    <span class="text-muted small">{{ movs|length }} entrega{{ 's' if movs|length != 1 else '' }}</span>
+                </div>
+                <div class="section-body">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Fecha</th><th>Remito</th><th>Tipo Tela</th><th>Color</th><th class="text-end">Kg</th><th class="text-end">Sub c/IVA</th><th>Pedido</th></tr></thead>
+                    <tbody>{% for m in movs %}<tr>
+                        <td>{{ m.fecha.strftime('%d/%m/%Y') }}</td><td>{{ m.remito_factura or '-' }}</td>
+                        <td>{{ m.tipo_tela }}</td><td>{{ m.color }}</td>
+                        <td class="text-end">{{ m.cant_kg|number }}</td><td class="text-end">{{ m.subtotal_iva|currency }}</td>
+                        <td>{% if m.pedido %}<span class="badge bg-primary">{{ m.pedido.numero }}</span>{% else %}-{% endif %}</td>
+                    </tr>{% endfor %}</tbody>
+                </table>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endfor %}
+</div>
+{% if not anticipos %}<div class="text-center text-muted py-4">Sin anticipos.</div>{% endif %}
+
+<!-- ──── INGRESO TELA ──── -->
+{% elif vista == 'tela' %}
+{% set f = tela_filtros %}
+{% set any_filter = f.fecha_desde or f.fecha_hasta or f.cuenta or f.remito or f.tipo_tela or f.color or f.cod_art or f.temporada %}
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+    <div class="d-flex align-items-center gap-2">
+        <form method="GET" action="{{ url_for('panel.panel') }}" class="d-flex align-items-center gap-2 mb-0">
+            <input type="hidden" name="proveedor_id" value="{{ proveedor.id }}">
+            <input type="hidden" name="vista" value="tela">
+            {% if f.cuenta %}<input type="hidden" name="tela_cuenta" value="{{ f.cuenta }}">{% endif %}
+            {% if f.remito %}<input type="hidden" name="tela_remito" value="{{ f.remito }}">{% endif %}
+            {% if f.tipo_tela %}<input type="hidden" name="tela_tipo_tela" value="{{ f.tipo_tela }}">{% endif %}
+            {% if f.color %}<input type="hidden" name="tela_color" value="{{ f.color }}">{% endif %}
+            {% if f.cod_art %}<input type="hidden" name="tela_cod_art" value="{{ f.cod_art }}">{% endif %}
+            {% if f.temporada %}<input type="hidden" name="tela_temporada" value="{{ f.temporada }}">{% endif %}
+            <label class="form-label mb-0 small fw-bold text-nowrap">Desde</label>
+            <input type="date" name="tela_fecha_desde" class="form-control form-control-sm" style="width:145px" value="{{ f.fecha_desde }}">
+            <label class="form-label mb-0 small fw-bold text-nowrap">Hasta</label>
+            <input type="date" name="tela_fecha_hasta" class="form-control form-control-sm" style="width:145px" value="{{ f.fecha_hasta }}">
+            <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i></button>
+        </form>
+        {% if any_filter %}
+        <a href="{{ url_for('panel.panel', proveedor_id=proveedor.id, vista='tela') }}" class="btn btn-sm btn-outline-danger"><i class="bi bi-x-lg"></i> Limpiar filtros</a>
+        {% endif %}
+    </div>
+    <a href="{{ url_for('exportar.exportar_movimientos_tela', proveedor_id=proveedor.id,
+        tela_fecha_desde=f.fecha_desde, tela_fecha_hasta=f.fecha_hasta,
+        tela_cuenta=f.cuenta, tela_remito=f.remito, tela_tipo_tela=f.tipo_tela,
+        tela_color=f.color, tela_cod_art=f.cod_art, tela_temporada=f.temporada) }}" class="btn btn-sm btn-outline-success">
+        <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+    </a>
+</div>
+
+{% if any_filter %}
+<div class="alert alert-info py-1 small mb-2">
+    <i class="bi bi-funnel-fill"></i>
+    {% if f.fecha_desde %}<span class="badge bg-dark">Desde: {{ f.fecha_desde }}</span> {% endif %}
+    {% if f.fecha_hasta %}<span class="badge bg-dark">Hasta: {{ f.fecha_hasta }}</span> {% endif %}
+    {% if f.cuenta %}<span class="badge bg-success">{{ f.cuenta }}</span> {% endif %}
+    {% if f.remito %}<span class="badge bg-secondary">Rem: {{ f.remito }}</span> {% endif %}
+    {% if f.tipo_tela %}<span class="badge bg-success">{{ f.tipo_tela }}</span> {% endif %}
+    {% if f.color %}<span class="badge bg-warning text-dark">{{ f.color }}</span> {% endif %}
+    {% if f.cod_art %}<span class="badge bg-secondary">Art: {{ f.cod_art }}</span> {% endif %}
+    {% if f.temporada %}<span class="badge bg-primary">{{ f.temporada }}</span> {% endif %}
+    — {{ tela_movimientos|length }} resultado{{ 's' if tela_movimientos|length != 1 else '' }}
+</div>
+{% endif %}
+
+<div class="panel-inner-section">
+    <div class="section-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th style="min-width:100px">
+                        <form method="GET" action="{{ url_for('panel.panel') }}" class="mb-0">
+                            <input type="hidden" name="proveedor_id" value="{{ proveedor.id }}">
+                            <input type="hidden" name="vista" value="tela">
+                            {% if f.fecha_desde %}<input type="hidden" name="tela_fecha_desde" value="{{ f.fecha_desde }}">{% endif %}
+                            {% if f.fecha_hasta %}<input type="hidden" name="tela_fecha_hasta" value="{{ f.fecha_hasta }}">{% endif %}
+                            {% if f.remito %}<input type="hidden" name="tela_remito" value="{{ f.remito }}">{% endif %}
+                            {% if f.tipo_tela %}<input type="hidden" name="tela_tipo_tela" value="{{ f.tipo_tela }}">{% endif %}
+                            {% if f.color %}<input type="hidden" name="tela_color" value="{{ f.color }}">{% endif %}
+                            {% if f.cod_art %}<input type="hidden" name="tela_cod_art" value="{{ f.cod_art }}">{% endif %}
+                            {% if f.temporada %}<input type="hidden" name="tela_temporada" value="{{ f.temporada }}">{% endif %}
+                            <select name="tela_cuenta" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+                                <option value="">CTA ▾</option>
+                                {% for c in tela_cuentas_unicas %}<option value="{{ c }}" {% if f.cuenta == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+                            </select>
+                        </form>
+                    </th>
+                    <th style="min-width:120px">
+                        <form method="GET" action="{{ url_for('panel.panel') }}" class="mb-0">
+                            <input type="hidden" name="proveedor_id" value="{{ proveedor.id }}">
+                            <input type="hidden" name="vista" value="tela">
+                            {% if f.fecha_desde %}<input type="hidden" name="tela_fecha_desde" value="{{ f.fecha_desde }}">{% endif %}
+                            {% if f.fecha_hasta %}<input type="hidden" name="tela_fecha_hasta" value="{{ f.fecha_hasta }}">{% endif %}
+                            {% if f.cuenta %}<input type="hidden" name="tela_cuenta" value="{{ f.cuenta }}">{% endif %}
+                            {% if f.tipo_tela %}<input type="hidden" name="tela_tipo_tela" value="{{ f.tipo_tela }}">{% endif %}
+                            {% if f.color %}<input type="hidden" name="tela_color" value="{{ f.color }}">{% endif %}
+                            {% if f.cod_art %}<input type="hidden" name="tela_cod_art" value="{{ f.cod_art }}">{% endif %}
+                            {% if f.temporada %}<input type="hidden" name="tela_temporada" value="{{ f.temporada }}">{% endif %}
+                            <select name="tela_remito" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+                                <option value="">REMITO ▾</option>
+                                {% for r in tela_remitos_unicos %}<option value="{{ r }}" {% if f.remito == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+                            </select>
+                        </form>
+                    </th>
+                    <th style="min-width:120px">
+                        <form method="GET" action="{{ url_for('panel.panel') }}" class="mb-0">
+                            <input type="hidden" name="proveedor_id" value="{{ proveedor.id }}">
+                            <input type="hidden" name="vista" value="tela">
+                            {% if f.fecha_desde %}<input type="hidden" name="tela_fecha_desde" value="{{ f.fecha_desde }}">{% endif %}
+                            {% if f.fecha_hasta %}<input type="hidden" name="tela_fecha_hasta" value="{{ f.fecha_hasta }}">{% endif %}
+                            {% if f.cuenta %}<input type="hidden" name="tela_cuenta" value="{{ f.cuenta }}">{% endif %}
+                            {% if f.remito %}<input type="hidden" name="tela_remito" value="{{ f.remito }}">{% endif %}
+                            {% if f.color %}<input type="hidden" name="tela_color" value="{{ f.color }}">{% endif %}
+                            {% if f.cod_art %}<input type="hidden" name="tela_cod_art" value="{{ f.cod_art }}">{% endif %}
+                            {% if f.temporada %}<input type="hidden" name="tela_temporada" value="{{ f.temporada }}">{% endif %}
+                            <select name="tela_tipo_tela" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+                                <option value="">TIPO TELA ▾</option>
+                                {% for t in tela_tipos_unicos %}<option value="{{ t }}" {% if f.tipo_tela == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+                            </select>
+                        </form>
+                    </th>
+                    <th style="min-width:120px">
+                        <form method="GET" action="{{ url_for('panel.panel') }}" class="mb-0">
+                            <input type="hidden" name="proveedor_id" value="{{ proveedor.id }}">
+                            <input type="hidden" name="vista" value="tela">
+                            {% if f.fecha_desde %}<input type="hidden" name="tela_fecha_desde" value="{{ f.fecha_desde }}">{% endif %}
+                            {% if f.fecha_hasta %}<input type="hidden" name="tela_fecha_hasta" value="{{ f.fecha_hasta }}">{% endif %}
+                            {% if f.cuenta %}<input type="hidden" name="tela_cuenta" value="{{ f.cuenta }}">{% endif %}
+                            {% if f.remito %}<input type="hidden" name="tela_remito" value="{{ f.remito }}">{% endif %}
+                            {% if f.tipo_tela %}<input type="hidden" name="tela_tipo_tela" value="{{ f.tipo_tela }}">{% endif %}
+                            {% if f.cod_art %}<input type="hidden" name="tela_cod_art" value="{{ f.cod_art }}">{% endif %}
+                            {% if f.temporada %}<input type="hidden" name="tela_temporada" value="{{ f.temporada }}">{% endif %}
+                            <select name="tela_color" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+                                <option value="">COLOR ▾</option>
+                                {% for c in tela_colores_unicos %}<option value="{{ c }}" {% if f.color == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+                            </select>
+                        </form>
+                    </th>
+                    <th style="min-width:110px">
+                        <form method="GET" action="{{ url_for('panel.panel') }}" class="mb-0">
+                            <input type="hidden" name="proveedor_id" value="{{ proveedor.id }}">
+                            <input type="hidden" name="vista" value="tela">
+                            {% if f.fecha_desde %}<input type="hidden" name="tela_fecha_desde" value="{{ f.fecha_desde }}">{% endif %}
+                            {% if f.fecha_hasta %}<input type="hidden" name="tela_fecha_hasta" value="{{ f.fecha_hasta }}">{% endif %}
+                            {% if f.cuenta %}<input type="hidden" name="tela_cuenta" value="{{ f.cuenta }}">{% endif %}
+                            {% if f.remito %}<input type="hidden" name="tela_remito" value="{{ f.remito }}">{% endif %}
+                            {% if f.tipo_tela %}<input type="hidden" name="tela_tipo_tela" value="{{ f.tipo_tela }}">{% endif %}
+                            {% if f.color %}<input type="hidden" name="tela_color" value="{{ f.color }}">{% endif %}
+                            {% if f.temporada %}<input type="hidden" name="tela_temporada" value="{{ f.temporada }}">{% endif %}
+                            <select name="tela_cod_art" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+                                <option value="">COD ART ▾</option>
+                                {% for a in tela_cod_arts_unicos %}<option value="{{ a }}" {% if f.cod_art == a %}selected{% endif %}>{{ a }}</option>{% endfor %}
+                            </select>
+                        </form>
+                    </th>
+                    <th class="text-end">Kg</th><th class="text-end">Pzas</th>
+                    <th class="text-end">$ s/IVA</th><th class="text-end">Sub c/IVA</th>
+                    <th>Anticipo</th><th>Mov.</th>
+                    <th style="min-width:130px">
+                        <form method="GET" action="{{ url_for('panel.panel') }}" class="mb-0">
+                            <input type="hidden" name="proveedor_id" value="{{ proveedor.id }}">
+                            <input type="hidden" name="vista" value="tela">
+                            {% if f.fecha_desde %}<input type="hidden" name="tela_fecha_desde" value="{{ f.fecha_desde }}">{% endif %}
+                            {% if f.fecha_hasta %}<input type="hidden" name="tela_fecha_hasta" value="{{ f.fecha_hasta }}">{% endif %}
+                            {% if f.cuenta %}<input type="hidden" name="tela_cuenta" value="{{ f.cuenta }}">{% endif %}
+                            {% if f.remito %}<input type="hidden" name="tela_remito" value="{{ f.remito }}">{% endif %}
+                            {% if f.tipo_tela %}<input type="hidden" name="tela_tipo_tela" value="{{ f.tipo_tela }}">{% endif %}
+                            {% if f.color %}<input type="hidden" name="tela_color" value="{{ f.color }}">{% endif %}
+                            {% if f.cod_art %}<input type="hidden" name="tela_cod_art" value="{{ f.cod_art }}">{% endif %}
+                            <select name="tela_temporada" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+                                <option value="">TEMP ▾</option>
+                                {% for t in tela_temporadas_unicas %}<option value="{{ t }}" {% if f.temporada == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+                            </select>
+                        </form>
+                    </th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for m in tela_movimientos %}
+                <tr>
+                    <td class="text-nowrap">{{ m.fecha.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ m.cuenta }}</td><td>{{ m.remito_factura }}</td>
+                    <td>{{ m.tipo_tela }}</td><td>{{ m.color }}</td><td>{{ m.cod_art }}</td>
+                    <td class="text-end {% if m.cant_kg < 0 %}text-danger{% endif %}">{{ m.cant_kg|number }}</td>
+                    <td class="text-end">{{ (m.piezas or 0)|integer }}</td>
+                    <td class="text-end">{{ m.precio_sin_iva|currency }}</td>
+                    <td class="text-end">{{ m.subtotal_iva|currency }}</td>
+                    <td>{% if m.anticipo %}<span class="badge bg-info">{{ m.anticipo.numero }}</span>{% else %}-{% endif %}</td>
+                    <td>
+                        {% if m.movimiento == 'Ingreso' %}<span class="badge badge-ingreso">Ingreso</span>
+                        {% elif m.movimiento == 'Devolucion' %}<span class="badge badge-devolucion">Devolucion</span>
+                        {% else %}<span class="badge badge-reposicion">{{ m.movimiento }}</span>{% endif %}
+                    </td>
+                    <td>{{ m.temporada }}</td>
+                    <td class="text-nowrap">
+                        <a href="{{ url_for('panel.panel_tela_editar', id=m.id) }}" class="btn btn-sm btn-outline-primary py-0" title="Editar"><i class="bi bi-pencil"></i></a>
+                        <form method="POST" action="{{ url_for('panel.panel_tela_eliminar', id=m.id) }}" class="d-inline" onsubmit="return confirm('Eliminar este movimiento?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button class="btn btn-sm btn-outline-danger py-0" title="Eliminar"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not tela_movimientos %}<tr><td colspan="14" class="text-center text-muted py-3">Sin ingresos</td></tr>{% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% else %}
+<div class="alert alert-light border text-center text-muted py-4 mt-3">
+    <i class="bi bi-arrow-up-circle fs-4 d-block mb-1"></i>
+    Elegí un proveedor en el formulario para cargar documentos.
+    Si querés ver el <strong>historial</strong> (Cta. Cte., Anticipos, Ingresos de Tela) seleccionalo abajo.
+    <form method="GET" class="mt-3 d-flex justify-content-center gap-2">
+        <select name="proveedor_id" class="form-select form-select-sm" style="max-width:320px" onchange="this.form.submit()">
+            <option value="">Ver historial de un proveedor...</option>
+            {% for p in proveedores %}
+            <option value="{{ p.id }}">{{ p.nombre }}</option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const selProveedor = document.getElementById('sel_proveedor');
+const tipoOp = document.getElementById('tipo_op');
+const secTela = document.getElementById('sec_tela');
+const secMonto = document.getElementById('sec_monto');
+const secNeto = document.getElementById('sec_neto');
+const secIvaAlic = document.getElementById('sec_iva_alic');
+const secBruto = document.getElementById('sec_bruto');
+const secNroAnticipo = document.getElementById('sec_nro_anticipo');
+const secKgAnticipo = document.getElementById('sec_kg_anticipo');
+const secAnticipoSelect = document.getElementById('sec_anticipo_select');
+const secPedidoSelect = document.getElementById('sec_pedido_select');
+const secCuentaAsignacion = document.getElementById('sec_cuenta_asignacion');
+const hint = document.getElementById('hint');
+const btnSubmit = document.getElementById('btnSubmit');
+let proveedorUsaCuentas = false;
+
+// Caches declarados arriba para evitar TDZ cuando onProveedorChange()
+// se invoca durante la inicializacion (proveedor preseleccionado por URL).
+let pedidoDetallesCache = [];
+let maestroCache = [];
+
+const TELA_OPS = ['ingreso_tela', 'ingreso_tela_anticipo', 'nc_devolucion'];
+const MONTO_OPS = ['nd'];                       // Bruto directo (Nota de Debito)
+const NETO_IVA_OPS = ['factura_anticipo'];      // Neto + IVA% -> calcula bruto
+const ANTICIPO_NRO_OPS = ['factura_anticipo'];
+const ANTICIPO_SEL_OPS = ['ingreso_tela_anticipo'];
+const PERCP_OPS = ['ingreso_tela', 'nc_devolucion'];
+
+const HINTS = {
+    'factura_anticipo': 'Crea un anticipo y registra la factura como DEBE en Cta. Cte.',
+    'ingreso_tela': 'Registra ingreso de tela + factura como DEBE en Cta. Cte.',
+    'ingreso_tela_anticipo': 'Registra ingreso de tela vinculado a un anticipo (sin nueva deuda).',
+    'nc_devolucion': 'Registra devolucion de tela (stock negativo) como "Pendiente NC". Luego asociar a NC real desde Notas de Credito.',
+    'nd': 'Registra Nota de Debito como DEBE en Cta. Cte.',
+};
+
+const BTN_LABELS = {
+    'factura_anticipo': 'Crear Anticipo',
+    'ingreso_tela': 'Registrar Ingreso',
+    'ingreso_tela_anticipo': 'Registrar Ingreso',
+    'nc_devolucion': 'Registrar Devolucion',
+    'nd': 'Registrar ND',
+};
+
+function onProveedorChange() {
+    const selAnticipo = document.getElementById('sel_anticipo');
+    const pid = selProveedor ? selProveedor.value : '';
+    proveedorUsaCuentas = false;
+    if (selAnticipo) selAnticipo.innerHTML = '<option value="">Sin anticipo</option>';
+    const selPedido = document.getElementById('sel_pedido');
+    if (selPedido) selPedido.innerHTML = '<option value="">Sin pedido</option>';
+    if (secCuentaAsignacion) {
+        const selCa = document.getElementById('sel_cuenta_asignacion');
+        if (selCa) selCa.innerHTML = '<option value="">Sin cuenta</option>';
+    }
+    maestroCache = [];
+    if (!pid) { resetTelaRows(); return; }
+    fetch('/api/maestro/por-proveedor/' + pid)
+        .then(r => r.json())
+        .then(data => { maestroCache = data || []; })
+        .catch(() => { maestroCache = []; })
+        .finally(() => {
+            if (pedidoDetallesCache.length === 0) resetTelaRows();
+        });
+    fetch('/api/anticipos/' + pid)
+        .then(r => r.json())
+        .then(data => {
+            proveedorUsaCuentas = !!(data.proveedor && data.proveedor.usa_cuentas_asignacion);
+            if (selAnticipo) {
+                (data.anticipos || []).forEach(a => {
+                    const opt = document.createElement('option');
+                    opt.value = a.id;
+                    const saldo = (a.saldo_pendiente || 0).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+                    opt.textContent = `${a.numero} ($ ${saldo})`;
+                    selAnticipo.appendChild(opt);
+                });
+            }
+            // Re-evaluar visibilidad de cuenta de asignacion
+            if (tipoOp) tipoOp.dispatchEvent(new Event('change'));
+        })
+        .catch(() => {});
+}
+
+if (tipoOp) tipoOp.addEventListener('change', function() {
+    const v = this.value;
+    secTela.style.display = TELA_OPS.includes(v) ? '' : 'none';
+    secMonto.style.display = MONTO_OPS.includes(v) ? '' : 'none';
+    if (secNeto) secNeto.style.display = NETO_IVA_OPS.includes(v) ? '' : 'none';
+    if (secIvaAlic) secIvaAlic.style.display = NETO_IVA_OPS.includes(v) ? '' : 'none';
+    if (secBruto) secBruto.style.display = NETO_IVA_OPS.includes(v) ? '' : 'none';
+    secNroAnticipo.style.display = ANTICIPO_NRO_OPS.includes(v) ? '' : 'none';
+    secKgAnticipo.style.display = v === 'factura_anticipo' ? '' : 'none';
+    secAnticipoSelect.style.display = ANTICIPO_SEL_OPS.includes(v) ? '' : 'none';
+    secPedidoSelect.style.display = ANTICIPO_SEL_OPS.includes(v) ? '' : 'none';
+    if (secCuentaAsignacion) secCuentaAsignacion.style.display = (ANTICIPO_SEL_OPS.includes(v) && proveedorUsaCuentas) ? '' : 'none';
+    if (!ANTICIPO_SEL_OPS.includes(v)) {
+        const sp = document.getElementById('sel_pedido');
+        if (sp) sp.innerHTML = '<option value="">Sin pedido</option>';
+        if (secCuentaAsignacion) {
+            const sc = document.getElementById('sel_cuenta_asignacion');
+            if (sc) sc.innerHTML = '<option value="">Sin cuenta</option>';
+        }
+    }
+    document.getElementById('percepcionesRow').style.display = PERCP_OPS.includes(v) ? '' : 'none';
+    hint.style.display = v ? '' : 'none';
+    hint.textContent = HINTS[v] || '';
+    btnSubmit.disabled = !v;
+    btnSubmit.innerHTML = v ? '<i class="bi bi-check-lg"></i> ' + BTN_LABELS[v] : 'Seleccionar tipo';
+});
+
+// Recalcular bruto = neto * (1 + iva/100) en vivo para Factura de Anticipo
+function recalcBrutoAnticipo() {
+    const inpNeto = document.getElementById('neto');
+    const inpIva = document.getElementById('iva_alicuota');
+    const out = document.getElementById('bruto_display');
+    if (!inpNeto || !inpIva || !out) return;
+    const neto = parseFloat(inpNeto.value || '0') || 0;
+    const iva = parseFloat(inpIva.value || '0') || 0;
+    const bruto = neto * (1 + iva / 100);
+    out.value = bruto.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+['neto', 'iva_alicuota'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', recalcBrutoAnticipo);
+});
+
+// Si hay proveedor preseleccionado (por URL), cargar sus anticipos
+if (selProveedor && selProveedor.value) {
+    onProveedorChange();
+}
+
+// Si hay tipo_op preseleccionado, disparar change para mostrar campos
+if (tipoOp && tipoOp.value) {
+    tipoOp.dispatchEvent(new Event('change'));
+}
+
+// Cargar pedidos y cuentas de asignacion al seleccionar anticipo
+function cargarPedidos() {
+    const selAnticipo = document.getElementById('sel_anticipo');
+    const selPedido = document.getElementById('sel_pedido');
+    selPedido.innerHTML = '<option value="">Sin pedido</option>';
+    pedidoDetallesCache = [];
+    if (!selAnticipo || !selAnticipo.value) return;
+    fetch('/api/pedidos/' + selAnticipo.value)
+        .then(r => r.json())
+        .then(data => {
+            data.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = p.numero + ' (' + p.kg_pendientes.toFixed(1) + ' kg pend.)';
+                selPedido.appendChild(opt);
+            });
+        });
+    // Cargar cuentas de asignacion
+    if (proveedorUsaCuentas) {
+        cargarCuentasAsignacion(selAnticipo.value);
+    }
+}
+
+function cargarCuentasAsignacion(anticipoId) {
+    const sel = document.getElementById('sel_cuenta_asignacion');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Sin cuenta</option>';
+    if (!anticipoId) return;
+    fetch('/api/anticipo/' + anticipoId + '/cuentas_asignacion')
+        .then(r => r.json())
+        .then(data => {
+            data.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.numero + ' - ' + c.tipo_tela + ' (' + c.kg_pendientes.toFixed(1) + ' kg / $' + c.saldo_pendiente.toFixed(0) + ' disp.)';
+                sel.appendChild(opt);
+            });
+        });
+}
+
+// Cargar lineas del pedido seleccionado
+function cargarLineasPedido() {
+    const selPedido = document.getElementById('sel_pedido');
+    if (!selPedido || !selPedido.value) {
+        pedidoDetallesCache = [];
+        resetTelaRows();
+        return;
+    }
+    fetch('/api/pedido/' + selPedido.value + '/detalles')
+        .then(r => r.json())
+        .then(data => {
+            pedidoDetallesCache = data;
+            // Limpiar tabla y crear una fila por cada linea del pedido
+            const body = document.getElementById('telaBody');
+            body.innerHTML = '';
+            if (data.length === 0) { addTelaRow(); return; }
+            data.forEach(d => {
+                addTelaRow(d.tipo_tela, d.color, d.cod_art, d.cod_color, d.precio_unitario);
+            });
+            bindTelaEvents();
+            recalcTela();
+        });
+}
+
+function resetTelaRows() {
+    const body = document.getElementById('telaBody');
+    if (body) { body.innerHTML = ''; addTelaRow(); bindTelaEvents(); }
+}
+
+const TELA_TIPOS = ['FRISA', 'JERSEY', 'RUSTICO', 'Morley', 'RIBB', 'DEPORTIVO', 'JERSEY 30/1'];
+
+function buildTipoSelect(selected, filterByPedido) {
+    let tipos;
+    if (filterByPedido && pedidoDetallesCache.length > 0) {
+        tipos = [...new Set(pedidoDetallesCache.map(d => d.tipo_tela))];
+    } else if (maestroCache.length > 0) {
+        tipos = [...new Set(maestroCache.map(d => d.tipo_tela))].sort();
+    } else {
+        tipos = TELA_TIPOS;
+    }
+    let html = '<option value="">-</option>';
+    tipos.forEach(t => { html += `<option ${t===selected?'selected':''}>${t}</option>`; });
+    return html;
+}
+
+function buildColorInput(value, filterByPedido, tipoTela) {
+    if (filterByPedido && pedidoDetallesCache.length > 0) {
+        const colores = [...new Set(pedidoDetallesCache
+            .filter(d => !tipoTela || d.tipo_tela === tipoTela)
+            .map(d => d.color))];
+        let html = '<option value="">-</option>';
+        colores.forEach(c => { html += `<option ${c===value?'selected':''}>${c}</option>`; });
+        return `<select name="color[]" class="form-select form-select-sm tela-color" onchange="onColorChange(this)">${html}</select>`;
+    }
+    if (maestroCache.length > 0) {
+        const colores = [...new Set(maestroCache
+            .filter(d => !tipoTela || d.tipo_tela === tipoTela)
+            .map(d => d.color))];
+        let html = '<option value="">-</option>';
+        colores.forEach(c => { html += `<option ${c===value?'selected':''}>${c}</option>`; });
+        return `<select name="color[]" class="form-select form-select-sm tela-color" onchange="onColorChange(this)">${html}</select>`;
+    }
+    return `<input type="text" name="color[]" class="form-control form-control-sm tela-color" value="${value||''}">`;
+}
+
+function addTelaRow(tipo, color, codArt, codColor, precio) {
+    const body = document.getElementById('telaBody');
+    const hasPedido = pedidoDetallesCache.length > 0;
+    const tr = document.createElement('tr');
+    tr.className = 'tela-row';
+    tr.innerHTML = `
+        <td><select name="tipo_tela[]" class="form-select form-select-sm tela-tipo" onchange="onTipoChange(this)">${buildTipoSelect(tipo||'', hasPedido)}</select></td>
+        <td>${buildColorInput(color||'', hasPedido, tipo)}</td>
+        <td><input type="text" name="cod_art[]" class="form-control form-control-sm" value="${codArt||''}"></td>
+        <td><input type="text" name="cod_color[]" class="form-control form-control-sm" value="${codColor||''}"></td>
+        <td><input type="number" step="0.01" name="cant_kg[]" class="form-control form-control-sm text-end tela-kg"></td>
+        <td><input type="number" name="piezas[]" class="form-control form-control-sm text-end"></td>
+        <td><input type="text" name="partida[]" class="form-control form-control-sm"></td>
+        <td><input type="number" step="0.01" name="precio_sin_iva[]" class="form-control form-control-sm text-end tela-psi" value="${precio||''}"></td>
+        <td><input type="text" class="form-control form-control-sm text-end bg-light tela-pci-d" readonly><input type="hidden" name="precio_con_iva[]" class="tela-pci"></td>
+        <td><input type="text" class="form-control form-control-sm text-end bg-light tela-sub-d" readonly><input type="hidden" name="subtotal[]" class="tela-sub"></td>
+        <td><input type="text" class="form-control form-control-sm text-end bg-light tela-subiva-d" readonly><input type="hidden" name="subtotal_iva[]" class="tela-subiva"></td>
+        <td><button type="button" class="btn btn-sm btn-outline-danger py-0 btn-rm-tela"><i class="bi bi-x"></i></button></td>`;
+    body.appendChild(tr);
+    bindTelaEvents();
+    recalcTela();
+}
+
+function onTipoChange(sel) {
+    const tr = sel.closest('tr');
+    const td = tr.querySelectorAll('td')[1];
+    const tipo = sel.value;
+
+    if (pedidoDetallesCache.length > 0) {
+        const colores = [...new Set(pedidoDetallesCache.filter(d => !tipo || d.tipo_tela === tipo).map(d => d.color))];
+        let html = '<option value="">-</option>';
+        colores.forEach(c => { html += `<option>${c}</option>`; });
+        td.innerHTML = `<select name="color[]" class="form-select form-select-sm tela-color" onchange="onColorChange(this)">${html}</select>`;
+        const match = pedidoDetallesCache.find(d => d.tipo_tela === tipo);
+        if (match) {
+            tr.querySelectorAll('td')[2].querySelector('input').value = match.cod_art || '';
+            tr.querySelectorAll('td')[3].querySelector('input').value = match.cod_color || '';
+        }
+        return;
+    }
+
+    if (maestroCache.length > 0) {
+        const colores = [...new Set(maestroCache.filter(d => !tipo || d.tipo_tela === tipo).map(d => d.color))];
+        let html = '<option value="">-</option>';
+        colores.forEach(c => { html += `<option>${c}</option>`; });
+        td.innerHTML = `<select name="color[]" class="form-select form-select-sm tela-color" onchange="onColorChange(this)">${html}</select>`;
+        // Reset cod_art/cod_color; se completan al elegir el color
+        const codArtInp = tr.querySelectorAll('td')[2].querySelector('input');
+        const codColorInp = tr.querySelectorAll('td')[3].querySelector('input');
+        if (codArtInp) codArtInp.value = '';
+        if (codColorInp) codColorInp.value = '';
+        // Si hay un unico color para este tipo, auto-seleccionarlo y disparar autofill
+        const matches = maestroCache.filter(d => d.tipo_tela === tipo);
+        if (matches.length === 1) {
+            const selColor = td.querySelector('select');
+            if (selColor) { selColor.value = matches[0].color; onColorChange(selColor); }
+        }
+    }
+}
+
+function onColorChange(selColor) {
+    const tr = selColor.closest('tr');
+    const tipoEl = tr.querySelector('.tela-tipo');
+    const tipo = tipoEl ? tipoEl.value : '';
+    const color = selColor.value;
+    const codArtInp = tr.querySelectorAll('td')[2].querySelector('input');
+    const codColorInp = tr.querySelectorAll('td')[3].querySelector('input');
+    const source = pedidoDetallesCache.length > 0 ? pedidoDetallesCache : maestroCache;
+    const match = source.find(d => d.tipo_tela === tipo && d.color === color);
+    if (match) {
+        if (codArtInp) codArtInp.value = match.cod_art || '';
+        if (codColorInp) codColorInp.value = match.cod_color || '';
+    } else {
+        if (codArtInp) codArtInp.value = '';
+        if (codColorInp) codColorInp.value = '';
+    }
+}
+
+function fmt(n) { return n.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+
+function recalcTela() {
+    let totalKg = 0, totalSub = 0, totalSubIva = 0;
+    document.querySelectorAll('.tela-row').forEach(row => {
+        const k = parseFloat(row.querySelector('.tela-kg')?.value) || 0;
+        const p = parseFloat(row.querySelector('.tela-psi')?.value) || 0;
+        const ci = p * 1.21;
+        const s = k * p;
+        const si = k * ci;
+        const pciD = row.querySelector('.tela-pci-d');
+        const pciH = row.querySelector('.tela-pci');
+        const subD = row.querySelector('.tela-sub-d');
+        const subH = row.querySelector('.tela-sub');
+        const siD = row.querySelector('.tela-subiva-d');
+        const siH = row.querySelector('.tela-subiva');
+        if (pciD) pciD.value = (k||p) ? '$ '+fmt(ci) : '';
+        if (pciH) pciH.value = (k||p) ? ci.toFixed(2) : '';
+        if (subD) subD.value = (k&&p) ? '$ '+fmt(s) : '';
+        if (subH) subH.value = (k&&p) ? s.toFixed(2) : '';
+        if (siD) siD.value = (k&&p) ? '$ '+fmt(si) : '';
+        if (siH) siH.value = (k&&p) ? si.toFixed(2) : '';
+        totalKg += k; totalSub += s; totalSubIva += si;
+    });
+    const elKg = document.getElementById('totalTelaKg');
+    const elSub = document.getElementById('totalTelaSub');
+    const elSubIva = document.getElementById('totalTelaSubIva');
+    if (elKg) elKg.textContent = fmt(totalKg);
+    if (elSub) elSub.textContent = '$ '+fmt(totalSub);
+    if (elSubIva) elSubIva.textContent = '$ '+fmt(totalSubIva);
+}
+
+function bindTelaEvents() {
+    document.querySelectorAll('.tela-kg, .tela-psi').forEach(el => {
+        el.removeEventListener('input', recalcTela);
+        el.addEventListener('input', recalcTela);
+    });
+    document.querySelectorAll('.btn-rm-tela').forEach(btn => {
+        btn.onclick = function() {
+            if (document.querySelectorAll('.tela-row').length > 1) {
+                this.closest('tr').remove(); recalcTela();
+            }
+        };
+    });
+}
+
+const btnAddTela = document.getElementById('btnAddTelaRow');
+if (btnAddTela) btnAddTela.addEventListener('click', () => { addTelaRow(); });
+bindTelaEvents();
+</script>
+{% endblock %}

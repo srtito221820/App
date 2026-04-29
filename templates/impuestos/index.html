@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Impuestos - Retenciones Ganancias{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <h4 class="mb-0"><i class="bi bi-bank"></i> Impuestos — Retenciones Practicadas</h4>
+    <div class="ms-auto">
+        <a href="{{ url_for('impuestos.retenciones_historial') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list-ul"></i> Historial</a>
+        <a href="{{ url_for('impuestos.retenciones_resumen_mensual') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-calendar-month"></i> Resumen Mensual</a>
+        <a href="{{ url_for('impuestos.retenciones_calculadora') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-calculator"></i> Calculadora</a>
+        <a href="{{ url_for('impuestos.retenciones_parametros') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-gear"></i> Parametros AFIP</a>
+        <a href="{{ url_for('impuestos.impuestos_sicore', mes=mes) }}" class="btn btn-sm btn-primary"><i class="bi bi-file-earmark-arrow-down"></i> Exportar SICORE</a>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Periodo</label>
+                <input type="month" name="mes" value="{{ mes }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-1">
+                <button type="submit" class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-funnel"></i></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-4">
+        <div class="card stat-card blue">
+            <div class="card-body">
+                <small class="text-muted">Monto Sujeto (mes)</small>
+                <h4 class="mb-0">{{ total_sujeto_mes | currency }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card red">
+            <div class="card-body">
+                <small class="text-muted">Total Retenido (mes)</small>
+                <h4 class="mb-0">{{ total_mes | currency }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card green">
+            <div class="card-body">
+                <small class="text-muted">Retenciones Practicadas</small>
+                <h4 class="mb-0">{{ cantidad_mes }}</h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><strong>Retenciones por Agente — {{ mes }}</strong></div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Agente</th>
+                    <th>CUIT</th>
+                    <th class="text-end">Cantidad</th>
+                    <th class="text-end">Monto Sujeto</th>
+                    <th class="text-end">Retenido</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cuit, data in por_agente.items() %}
+                <tr>
+                    <td><strong>{{ data.nombre }}</strong></td>
+                    <td><small>{{ cuit }}</small></td>
+                    <td class="text-end">{{ data.cantidad }}</td>
+                    <td class="text-end">{{ data.monto_sujeto | currency }}</td>
+                    <td class="text-end text-danger"><strong>{{ data.retencion | currency }}</strong></td>
+                    <td>
+                        <a href="{{ url_for('impuestos.impuestos_sicore', mes=mes, agente=cuit) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-arrow-down"></i> SICORE</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-center text-muted py-4">No hay retenciones en el periodo {{ mes }}.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

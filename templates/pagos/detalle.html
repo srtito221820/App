@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Pago {{ p.numero }}{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <h4 class="mb-0"><i class="bi bi-cash-coin"></i> Pago {{ p.numero }}</h4>
+    <div class="ms-auto">
+        <a href="{{ url_for('pagos.pagos_list') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+        <a href="{{ url_for('pagos.pago_imprimir', id=p.id) }}" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-printer"></i> Imprimir OP</a>
+        <form method="POST" action="{{ url_for('pagos.pago_eliminar', id=p.id) }}" class="d-inline" onsubmit="return confirm('¿Eliminar el pago? Se revertiran los asientos de CC y la retencion asociada.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Eliminar</button>
+        </form>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-3">
+            <div class="card-header"><strong>Datos del Pago</strong></div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Numero</dt><dd class="col-sm-8"><strong>{{ p.numero }}</strong></dd>
+                    <dt class="col-sm-4">Fecha</dt><dd class="col-sm-8">{{ p.fecha.strftime('%d/%m/%Y') }}</dd>
+                    <dt class="col-sm-4">Proveedor</dt>
+                    <dd class="col-sm-8">
+                        {{ p.proveedor.nombre }}
+                        {% if p.proveedor.cuit %}<br><small class="text-muted">CUIT {{ p.proveedor.cuit }}</small>{% endif %}
+                    </dd>
+                    <dt class="col-sm-4">Agente Ret.</dt>
+                    <dd class="col-sm-8">{{ p.agente_nombre }}<br><small class="text-muted">CUIT {{ p.agente_cuit }}</small></dd>
+                    <dt class="col-sm-4">Medio de Pago</dt><dd class="col-sm-8">{{ p.medio_pago or '—' }}</dd>
+                    <dt class="col-sm-4">Referencia</dt><dd class="col-sm-8">{{ p.referencia or '—' }}</dd>
+                    <dt class="col-sm-4">Observaciones</dt><dd class="col-sm-8">{{ p.observaciones or '—' }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card mb-3">
+            <div class="card-header"><strong>Totales</strong></div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-4">
+                        <small class="text-muted">Bruto</small>
+                        <h4 class="mb-0">{{ (p.monto_bruto or 0) | currency }}</h4>
+                    </div>
+                    <div class="col-md-4">
+                        <small class="text-muted">Retenciones</small>
+                        <h4 class="mb-0 text-danger">{{ (p.total_retenciones or 0) | currency }}</h4>
+                    </div>
+                    <div class="col-md-4">
+                        <small class="text-muted">Neto</small>
+                        <h4 class="mb-0 text-success">{{ (p.monto_neto or 0) | currency }}</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header"><strong>Facturas Aplicadas</strong></div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Fecha</th>
+                    <th>Tipo</th>
+                    <th>Nro</th>
+                    <th>Descripcion</th>
+                    <th class="text-end">Total Factura</th>
+                    <th class="text-end">Aplicado</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ap in p.aplicaciones %}
+                {% set es_cred = ap.factura.es_credito() %}
+                {% set total_comp = (ap.factura.haber if es_cred else ap.factura.debe) or 0 %}
+                <tr class="{% if es_cred %}table-success{% endif %}">
+                    <td>{{ ap.factura.fecha.strftime('%d/%m/%Y') }}</td>
+                    <td>
+                        {% if es_cred %}<span class="badge bg-success">NC</span>
+                        {% else %}<small>{{ ap.factura.tipo }}</small>{% endif %}
+                    </td>
+                    <td><strong>{{ ap.factura.numero_comprobante or '-' }}</strong></td>
+                    <td><small>{{ (ap.factura.descripcion or '')[:50] }}</small></td>
+                    <td class="text-end">
+                        {% if es_cred %}<span class="text-success">- {{ total_comp | currency }}</span>
+                        {% else %}{{ total_comp | currency }}{% endif %}
+                    </td>
+                    <td class="text-end">
+                        <strong class="{% if es_cred %}text-success{% endif %}">
+                            {% if es_cred %}- {% endif %}{{ ap.monto_aplicado | currency }}
+                        </strong>
+                    </td>
+                    <td>
+                        <a href="{{ url_for('facturas.factura_detalle', id=ap.factura.id) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if p.retenciones.count() > 0 %}
+<div class="card">
+    <div class="card-header"><strong>Retenciones Practicadas</strong></div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Concepto</th>
+                    <th>Condicion</th>
+                    <th>Alicuota</th>
+                    <th class="text-end">Base</th>
+                    <th class="text-end">Retenido Previo</th>
+                    <th class="text-end">Retencion</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in p.retenciones %}
+                <tr>
+                    <td><strong>{{ r.concepto.codigo }}</strong> — <small>{{ r.concepto.concepto }}</small></td>
+                    <td><small>{{ r.condicion }}</small></td>
+                    <td>{{ r.alicuota_aplicada }}</td>
+                    <td class="text-end">{{ (r.base_sujeta or 0) | currency }}</td>
+                    <td class="text-end text-muted">{{ (r.retenido_previo or 0) | currency }}</td>
+                    <td class="text-end"><strong class="text-danger">{{ (r.retencion or 0) | currency }}</strong></td>
+                    <td>
+                        <a href="{{ url_for('impuestos.retenciones_certificado', id=r.id) }}" target="_blank" class="btn btn-sm btn-outline-primary" title="Certificado"><i class="bi bi-file-earmark-text"></i></a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

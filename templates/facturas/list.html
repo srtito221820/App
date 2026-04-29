@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Facturas de Proveedores{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <h4 class="mb-0"><i class="bi bi-receipt-cutoff"></i> Facturas de Proveedores</h4>
+    <div class="ms-auto">
+        <a href="{{ url_for('panel.panel', proveedor_id=filtros.proveedor_id or '') }}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-layout-text-sidebar"></i> Registrar desde Panel de Proveedor
+        </a>
+    </div>
+</div>
+
+<div class="alert alert-info py-2 small mb-3">
+    <i class="bi bi-info-circle"></i>
+    La carga de facturas, notas de débito y notas de crédito se realiza únicamente desde el
+    <a href="{{ url_for('panel.panel', proveedor_id=filtros.proveedor_id or '') }}" class="alert-link">Panel de Proveedor</a>,
+    donde se registran todos los datos del comprobante (ítems de tela, percepciones, anticipos, etc.).
+    Desde esta vista solo se consultan y pagan.
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-3">
+        <div class="card stat-card blue">
+            <div class="card-body py-2">
+                <small class="text-muted">Total Facturado</small>
+                <h5 class="mb-0">{{ total_facturado|currency }}</h5>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card orange">
+            <div class="card-body py-2">
+                <small class="text-muted">Pendiente de Pago</small>
+                <h5 class="mb-0">{{ total_pendiente|currency }}</h5>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card green">
+            <div class="card-body py-2">
+                <small class="text-muted">Cantidad</small>
+                <h5 class="mb-0">{{ facturas|length }}</h5>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Proveedor</label>
+                <select name="proveedor_id" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    {% for p in proveedores %}
+                    <option value="{{ p.id }}" {% if filtros.proveedor_id == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Tipo</label>
+                <select name="tipo" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    <option value="Factura" {% if filtros.tipo == 'Factura' %}selected{% endif %}>Factura</option>
+                    <option value="Nota de Debito" {% if filtros.tipo == 'Nota de Debito' %}selected{% endif %}>Nota de Debito</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Estado</label>
+                <select name="estado" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    <option value="Pendiente" {% if filtros.estado == 'Pendiente' %}selected{% endif %}>Pendiente</option>
+                    <option value="Parcial" {% if filtros.estado == 'Parcial' %}selected{% endif %}>Parcial</option>
+                    <option value="Pagada" {% if filtros.estado == 'Pagada' %}selected{% endif %}>Pagada</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Desde</label>
+                <input type="date" name="desde" value="{{ filtros.desde }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Hasta</label>
+                <input type="date" name="hasta" value="{{ filtros.hasta }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-1">
+                <button type="submit" class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-funnel"></i></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Fecha</th>
+                    <th>Tipo</th>
+                    <th>Nro</th>
+                    <th>Proveedor</th>
+                    <th>Descripcion</th>
+                    <th>Cuenta</th>
+                    <th class="text-end">Total</th>
+                    <th class="text-end">Aplicado</th>
+                    <th class="text-end">Saldo</th>
+                    <th>Estado</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for f in facturas %}
+                <tr>
+                    <td>{{ f.fecha.strftime('%d/%m/%Y') }}</td>
+                    <td><small class="text-muted">{{ f.tipo }}</small></td>
+                    <td><strong>{{ f.numero_comprobante or '-' }}</strong></td>
+                    <td>{{ f.proveedor.nombre }}</td>
+                    <td><small>{{ (f.descripcion or '')[:40] }}</small></td>
+                    <td><small>{{ f.cuenta or '-' }}</small></td>
+                    <td class="text-end">{{ (f.debe or 0)|currency }}</td>
+                    <td class="text-end text-muted">{{ f.monto_aplicado()|currency }}</td>
+                    <td class="text-end"><strong>{{ f.saldo_pendiente()|currency }}</strong></td>
+                    <td>
+                        {% set est = f.estado_pago() %}
+                        {% if est == 'Pagada' %}<span class="badge bg-success">Pagada</span>
+                        {% elif est == 'Parcial' %}<span class="badge bg-warning text-dark">Parcial</span>
+                        {% elif est == 'Pendiente' %}<span class="badge bg-danger">Pendiente</span>
+                        {% else %}<span class="badge bg-secondary">-</span>{% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('facturas.factura_detalle', id=f.id) }}" class="btn btn-sm btn-outline-secondary" title="Ver"><i class="bi bi-eye"></i></a>
+                        <a href="{{ url_for('panel.panel_cc_editar', id=f.id) }}" class="btn btn-sm btn-outline-primary" title="Editar"><i class="bi bi-pencil"></i></a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="11" class="text-center text-muted py-4">No hay facturas registradas.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

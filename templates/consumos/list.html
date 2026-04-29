@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+{% block title %}Consumos - Inventario{% endblock %}
+
+{% set any_filter = proveedor_id or tipo_tela_sel or color_sel or cuenta_sel or partida_sel or fecha_desde_sel or fecha_hasta_sel %}
+
+{% macro hidden_filters(skip=None) -%}
+    {% if skip != 'proveedor_id' and proveedor_id %}<input type="hidden" name="proveedor_id" value="{{ proveedor_id }}">{% endif %}
+    {% if skip != 'tipo_tela' and tipo_tela_sel %}<input type="hidden" name="tipo_tela" value="{{ tipo_tela_sel }}">{% endif %}
+    {% if skip != 'color' and color_sel %}<input type="hidden" name="color" value="{{ color_sel }}">{% endif %}
+    {% if skip != 'cuenta' and cuenta_sel %}<input type="hidden" name="cuenta" value="{{ cuenta_sel }}">{% endif %}
+    {% if skip != 'partida' and partida_sel %}<input type="hidden" name="partida" value="{{ partida_sel }}">{% endif %}
+    {% if skip != 'fecha_desde' and fecha_desde_sel %}<input type="hidden" name="fecha_desde" value="{{ fecha_desde_sel }}">{% endif %}
+    {% if skip != 'fecha_hasta' and fecha_hasta_sel %}<input type="hidden" name="fecha_hasta" value="{{ fecha_hasta_sel }}">{% endif %}
+    {% if incluir_agotadas %}<input type="hidden" name="agotadas" value="1">{% endif %}
+{%- endmacro %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="bi bi-scissors"></i> Consumos</h4>
+    <div class="d-flex gap-2">
+        {% if any_filter %}
+        <a href="{{ url_for('consumos.consumos_list', agotadas='1' if incluir_agotadas else None) }}"
+           class="btn btn-sm btn-outline-danger">
+            <i class="bi bi-x-lg"></i> Limpiar filtros
+        </a>
+        {% endif %}
+        <a href="{{ url_for('consumos.exportar_consumos', **request.args.to_dict()) }}"
+           class="btn btn-sm btn-outline-success">
+            <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+        </a>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <form method="GET" class="row g-2 align-items-end mb-0">
+            {# Preservar filtros no-fecha al cambiar las fechas #}
+            {% if proveedor_id %}<input type="hidden" name="proveedor_id" value="{{ proveedor_id }}">{% endif %}
+            {% if tipo_tela_sel %}<input type="hidden" name="tipo_tela" value="{{ tipo_tela_sel }}">{% endif %}
+            {% if color_sel %}<input type="hidden" name="color" value="{{ color_sel }}">{% endif %}
+            {% if cuenta_sel %}<input type="hidden" name="cuenta" value="{{ cuenta_sel }}">{% endif %}
+            {% if partida_sel %}<input type="hidden" name="partida" value="{{ partida_sel }}">{% endif %}
+            {% if incluir_agotadas %}<input type="hidden" name="agotadas" value="1">{% endif %}
+            <div class="col-auto">
+                <label class="form-label small mb-0">Fecha desde</label>
+                <input type="date" name="fecha_desde" value="{{ fecha_desde_sel }}"
+                       class="form-control form-control-sm" onchange="this.form.submit()">
+            </div>
+            <div class="col-auto">
+                <label class="form-label small mb-0">Fecha hasta</label>
+                <input type="date" name="fecha_hasta" value="{{ fecha_hasta_sel }}"
+                       class="form-control form-control-sm" onchange="this.form.submit()">
+            </div>
+            {% if fecha_desde_sel or fecha_hasta_sel %}
+            {% set qp = request.args.to_dict() %}
+            {% set _ = qp.pop('fecha_desde', None) %}
+            {% set _ = qp.pop('fecha_hasta', None) %}
+            <div class="col-auto">
+                <a href="{{ url_for('consumos.consumos_list', **qp) }}" class="btn btn-sm btn-outline-secondary">Limpiar fechas</a>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+{% if any_filter %}
+<div class="alert alert-info py-1 small mb-3">
+    <i class="bi bi-funnel-fill"></i>
+    {% if proveedor_id %}{% for p in proveedores %}{% if p.id == proveedor_id %}<span class="badge bg-primary">{{ p.nombre }}</span> {% endif %}{% endfor %}{% endif %}
+    {% if tipo_tela_sel %}<span class="badge bg-success">{{ tipo_tela_sel }}</span> {% endif %}
+    {% if color_sel %}<span class="badge bg-warning text-dark">{{ color_sel }}</span> {% endif %}
+    {% if cuenta_sel %}<span class="badge bg-secondary">{{ cuenta_sel }}</span> {% endif %}
+    {% if partida_sel %}<span class="badge bg-info">Partida {{ partida_sel }}</span> {% endif %}
+    {% if fecha_desde_sel or fecha_hasta_sel %}<span class="badge bg-dark">
+        {{ fecha_desde_sel or '…' }} → {{ fecha_hasta_sel or '…' }}
+    </span>{% endif %}
+</div>
+{% endif %}
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <div class="card stat-card red">
+            <div class="card-body">
+                <div class="text-muted small">Total kg consumidos</div>
+                <div class="h4 mb-0">{{ (total_kg * -1)|number }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card stat-card orange">
+            <div class="card-body">
+                <div class="text-muted small">Total piezas consumidas</div>
+                <div class="h4 mb-0">{{ (total_piezas * -1) }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <strong><i class="bi bi-boxes"></i> Partidas cargadas</strong>
+        <div class="d-flex align-items-center gap-3">
+            <span class="text-muted small">{{ partidas|length }} partida(s) con saldo{% if any_filter %} (filtrado){% endif %}</span>
+            {% set qp = request.args.to_dict() %}
+            {% if incluir_agotadas %}
+                {% set _ = qp.pop('agotadas', None) %}
+                <a href="{{ url_for('consumos.consumos_list', **qp) }}" class="btn btn-sm btn-outline-secondary">Ocultar agotadas</a>
+            {% else %}
+                {% set _ = qp.update({'agotadas': '1'}) %}
+                <a href="{{ url_for('consumos.consumos_list', **qp) }}" class="btn btn-sm btn-outline-secondary">Mostrar agotadas</a>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th style="min-width:120px">
+                        <form method="GET" class="mb-0">{{ hidden_filters(skip='partida') }}
+                            <select name="partida" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+                                <option value="">Nº PARTIDA ▾</option>
+                                {% for n in partidas_nums %}
+                                <option value="{{ n }}" {% if partida_sel == n %}selected{% endif %}>{{ n }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </th>
+                    <th>Fecha</th>
+                    <th style="min-width:150px">
+                        <form method="GET" class="mb-0">{{ hidden_filters(skip='proveedor_id') }}
+                            <select name="proveedor_id" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+                                <option value="">PROVEEDOR ▾</option>
+                                {% for p in proveedores %}
+                                <option value="{{ p.id }}" {% if proveedor_id == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </th>
+                    <th style="min-width:140px">
+                        <form method="GET" class="mb-0">{{ hidden_filters(skip='tipo_tela') }}
+                            <select name="tipo_tela" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+                                <option value="">TIPO TELA ▾</option>
+                                {% for t in tipos_tela %}
+                                <option value="{{ t }}" {% if tipo_tela_sel == t %}selected{% endif %}>{{ t }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </th>
+                    <th style="min-width:120px">
+                        <form method="GET" class="mb-0">{{ hidden_filters(skip='color') }}
+                            <select name="color" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+                                <option value="">COLOR ▾</option>
+                                {% for c in colores %}
+                                <option value="{{ c }}" {% if color_sel == c %}selected{% endif %}>{{ c }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </th>
+                    <th class="text-end">Pzas Tot.</th>
+                    <th class="text-end">Pzas Saldo</th>
+                    <th class="text-end">Kg Tot.</th>
+                    <th class="text-end">Kg Saldo</th>
+                    <th class="text-center">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in partidas %}
+                <tr>
+                    <td><strong>{{ p.numero }}</strong></td>
+                    <td>{{ p.fecha_alta.strftime('%d/%m/%Y') if p.fecha_alta else '-' }}</td>
+                    <td class="small">{{ p.proveedor.nombre if p.proveedor else '-' }}</td>
+                    <td class="small">{{ p.tipo_tela or '-' }}</td>
+                    <td class="small">{{ p.color or '-' }}</td>
+                    <td class="text-end">{{ p.piezas_totales or 0 }}</td>
+                    <td class="text-end {% if p.piezas_saldo() <= 0 %}text-muted{% else %}text-success{% endif %}">
+                        {{ p.piezas_saldo() }}
+                    </td>
+                    <td class="text-end">{{ (p.kg_totales or 0)|number }}</td>
+                    <td class="text-end {% if p.kg_saldo() <= 0 %}text-muted{% else %}text-success{% endif %}">
+                        {{ p.kg_saldo()|number }}
+                    </td>
+                    <td class="text-center">
+                        {% if p.esta_agotada() %}
+                        <span class="badge bg-secondary">Agotada</span>
+                        {% else %}
+                        <a href="{{ url_for('consumos.consumo_nuevo', partida_id=p.id) }}"
+                           class="btn btn-sm btn-danger" title="Consumir de esta partida">
+                            <i class="bi bi-scissors"></i> Consumir
+                        </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not partidas %}
+                <tr><td colspan="10" class="text-center text-muted py-3">Sin partidas cargadas.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-white"><strong><i class="bi bi-scissors"></i> Consumos</strong></div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th style="min-width:150px">
+                        <form method="GET" class="mb-0">{{ hidden_filters(skip='proveedor_id') }}
+                            <select name="proveedor_id" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+                                <option value="">PROVEEDOR ▾</option>
+                                {% for p in proveedores %}
+                                <option value="{{ p.id }}" {% if proveedor_id == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </th>
+                    <th style="min-width:140px">
+                        <form method="GET" class="mb-0">{{ hidden_filters(skip='tipo_tela') }}
+                            <select name="tipo_tela" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+                                <option value="">TIPO TELA ▾</option>
+                                {% for t in tipos_tela %}
+                                <option value="{{ t }}" {% if tipo_tela_sel == t %}selected{% endif %}>{{ t }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </th>
+                    <th style="min-width:120px">
+                        <form method="GET" class="mb-0">{{ hidden_filters(skip='color') }}
+                            <select name="color" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+                                <option value="">COLOR ▾</option>
+                                {% for c in colores %}
+                                <option value="{{ c }}" {% if color_sel == c %}selected{% endif %}>{{ c }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </th>
+                    <th style="min-width:120px">
+                        <form method="GET" class="mb-0">{{ hidden_filters(skip='partida') }}
+                            <select name="partida" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+                                <option value="">PARTIDA ▾</option>
+                                {% for n in partidas_nums %}
+                                <option value="{{ n }}" {% if partida_sel == n %}selected{% endif %}>{{ n }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </th>
+                    <th>OP</th>
+                    <th class="text-end">Kg</th>
+                    <th class="text-end">Piezas</th>
+                    <th style="min-width:100px">
+                        <form method="GET" class="mb-0">{{ hidden_filters(skip='cuenta') }}
+                            <select name="cuenta" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+                                <option value="">CUENTA ▾</option>
+                                <option value="JUMAF" {% if cuenta_sel == 'JUMAF' %}selected{% endif %}>JUMAF</option>
+                                <option value="JUMASA" {% if cuenta_sel == 'JUMASA' %}selected{% endif %}>JUMASA</option>
+                            </select>
+                        </form>
+                    </th>
+                    <th>Obs</th>
+                    <th class="text-center">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in consumos %}
+                <tr>
+                    <td>{{ m.fecha.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ m.proveedor.nombre }}</td>
+                    <td>{{ m.tipo_tela }}</td>
+                    <td>{{ m.color }}</td>
+                    <td>{{ m.partida_rel.numero if m.partida_rel else (m.partida or '-') }}</td>
+                    <td>{{ m.op or '-' }}</td>
+                    <td class="text-end text-danger">{{ m.cant_kg|number }}</td>
+                    <td class="text-end">{{ (m.piezas or 0)|integer }}</td>
+                    <td>{{ m.cuenta or '-' }}</td>
+                    <td class="small text-muted">{{ m.observaciones or '' }}</td>
+                    <td class="text-center">
+                        <form method="POST" action="{{ url_for('consumos.consumo_eliminar', id=m.id) }}" class="d-inline"
+                              onsubmit="return confirm('Eliminar consumo?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not consumos %}
+                <tr><td colspan="11" class="text-center text-muted py-4">Sin consumos registrados.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

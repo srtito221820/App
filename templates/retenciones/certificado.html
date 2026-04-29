@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Certificado Retencion Ganancias — {{ r.numero_comprobante }}</title>
+<style>
+    @page { size: A4; margin: 15mm; }
+    body { font-family: Arial, sans-serif; font-size: 11pt; color: #222; margin: 0; padding: 20px; }
+    .sheet {
+        max-width: 190mm; margin: 0 auto; background: white;
+        border: 1px solid #333; padding: 20px 28px;
+    }
+    h1 { font-size: 14pt; text-align: center; margin: 0 0 4px; text-transform: uppercase; }
+    .sub { text-align: center; font-size: 10pt; color: #555; margin-bottom: 18px; }
+    .block { border: 1px solid #999; padding: 10px 12px; margin-bottom: 12px; }
+    .block-title {
+        background: #f0f0f0; margin: -10px -12px 10px;
+        padding: 6px 12px; font-weight: bold; font-size: 10pt;
+        text-transform: uppercase; border-bottom: 1px solid #999;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+    table td { padding: 3px 6px; vertical-align: top; }
+    table td.label { width: 38%; color: #555; }
+    .total-row { background: #fff8e1; font-weight: bold; font-size: 11pt; }
+    .firmas { margin-top: 36px; display: flex; justify-content: space-around; }
+    .firma { text-align: center; width: 45%; }
+    .firma .linea { border-top: 1px solid #333; margin-bottom: 4px; padding-top: 28px; }
+    .footer { margin-top: 24px; font-size: 8pt; color: #888; text-align: center; }
+    .no-print { text-align: center; margin-bottom: 12px; }
+    @media print {
+        body { padding: 0; background: white; }
+        .sheet { border: none; padding: 0; }
+        .no-print { display: none; }
+    }
+</style>
+</head>
+<body>
+<div class="no-print">
+    <button onclick="window.print()" style="padding: 8px 18px; background: #4f46e5; color: white; border: none; border-radius: 6px; cursor: pointer;">
+        🖨 Imprimir
+    </button>
+    <a href="{{ url_for('impuestos.retenciones_historial') }}" style="margin-left: 10px;">← Volver</a>
+</div>
+
+<div class="sheet">
+    <h1>Comprobante de Retencion — Impuesto a las Ganancias</h1>
+    <div class="sub">Regimen General RG AFIP 830</div>
+
+    <div class="block">
+        <div class="block-title">Agente de Retencion</div>
+        <table>
+            <tr><td class="label">Razon Social</td><td>{{ agente.razon_social }}</td></tr>
+            <tr><td class="label">CUIT</td><td>{{ agente.cuit }}</td></tr>
+            <tr><td class="label">Domicilio</td><td>{{ agente.domicilio }}</td></tr>
+        </table>
+    </div>
+
+    <div class="block">
+        <div class="block-title">Sujeto Retenido</div>
+        <table>
+            <tr><td class="label">Razon Social / Nombre</td><td>{{ r.proveedor.nombre }}</td></tr>
+            <tr><td class="label">CUIT</td><td>{{ r.proveedor.cuit or '—' }}</td></tr>
+            <tr><td class="label">Condicion Ganancias</td><td>{{ r.condicion }}</td></tr>
+        </table>
+    </div>
+
+    <div class="block">
+        <div class="block-title">Datos de la Retencion</div>
+        <table>
+            <tr><td class="label">Fecha del pago</td><td>{{ r.fecha.strftime('%d/%m/%Y') }}</td></tr>
+            <tr><td class="label">N° Comprobante / Factura</td><td>{{ r.numero_comprobante }}</td></tr>
+            <tr><td class="label">Concepto</td><td>{{ r.concepto.concepto }}</td></tr>
+            <tr><td class="label">Codigo de Regimen</td><td>{{ r.concepto.codigo }}</td></tr>
+            <tr><td class="label">Monto sujeto a retencion</td><td>{{ (r.monto_sujeto or 0) | currency }}</td></tr>
+            <tr><td class="label">Base acumulada del mes</td><td>{{ (r.base_acumulada or 0) | currency }}</td></tr>
+            <tr><td class="label">MNI aplicado</td><td>{{ (r.mni_aplicado or 0) | currency }}</td></tr>
+            <tr><td class="label">Base imponible</td><td>{{ (r.base_sujeta or 0) | currency }}</td></tr>
+            <tr><td class="label">Alicuota aplicada</td><td>{{ r.alicuota_aplicada }}</td></tr>
+            <tr class="total-row"><td>IMPORTE RETENIDO</td><td>{{ (r.retencion or 0) | currency }}</td></tr>
+            <tr><td class="label">Monto neto pagado</td><td>{{ (r.monto_neto or 0) | currency }}</td></tr>
+        </table>
+    </div>
+
+    <div class="firmas">
+        <div class="firma"><div class="linea"></div><small>Firma Agente de Retencion</small></div>
+        <div class="firma"><div class="linea"></div><small>Firma Sujeto Retenido</small></div>
+    </div>
+
+    <div class="footer">
+        Emitido conforme a la RG AFIP 830 y sus modificatorias. Generado el {{ r.created_at.strftime('%d/%m/%Y %H:%M') if r.created_at else '' }}.
+    </div>
+</div>
+</body>
+</html>

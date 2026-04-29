@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}NC {{ nc.numero }}{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <a href="{{ url_for('notas_credito.notas_credito_list') }}" class="btn btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+    <h4 class="mb-0"><i class="bi bi-arrow-return-left"></i> NC {{ nc.numero }}</h4>
+    <div class="ms-auto">
+        <a href="{{ url_for('notas_credito.nota_credito_editar', id=nc.id) }}" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-pencil"></i> Editar
+        </a>
+        <form method="POST" action="{{ url_for('notas_credito.nota_credito_eliminar', id=nc.id) }}" class="d-inline"
+              onsubmit="return confirm('Eliminar NC {{ nc.numero }}? Se revertiran las devoluciones vinculadas.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Eliminar</button>
+        </form>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="text-muted mb-3">Datos</h6>
+                <dl class="row mb-0 small">
+                    <dt class="col-5">Fecha</dt><dd class="col-7">{{ nc.fecha.strftime('%d/%m/%Y') }}</dd>
+                    <dt class="col-5">Proveedor</dt><dd class="col-7">{{ nc.proveedor.nombre }}</dd>
+                    <dt class="col-5">Cuenta</dt><dd class="col-7">{{ nc.cuenta or '-' }}</dd>
+                    <dt class="col-5">Monto s/IVA</dt><dd class="col-7">{{ nc.monto_total|currency }}</dd>
+                    <dt class="col-5">IVA</dt><dd class="col-7">{{ nc.iva|currency }}</dd>
+                    <dt class="col-5">Monto c/IVA (impacto CC)</dt><dd class="col-7"><strong>{{ nc.monto_con_iva|currency }}</strong></dd>
+                    <dt class="col-5">Observaciones</dt><dd class="col-7">{{ nc.observaciones or '-' }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="text-muted mb-3">Control de kg</h6>
+                {% set kg_r = nc.total_kg_reclamados() %}
+                {% set kg_a = nc.total_kg_aceptados() %}
+                <dl class="row mb-0 small">
+                    <dt class="col-6">Kg reclamados</dt><dd class="col-6">{{ kg_r|number }}</dd>
+                    <dt class="col-6">Kg aceptados</dt><dd class="col-6">{{ kg_a|number }}</dd>
+                    <dt class="col-6">Diferencia (perdida)</dt>
+                    <dd class="col-6 {% if kg_r - kg_a > 0.01 %}text-danger{% endif %}">
+                        <strong>{{ (kg_r - kg_a)|number }}</strong>
+                    </dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-white"><strong>Devoluciones vinculadas</strong></div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th>Fecha Dev.</th>
+                    <th>Remito</th>
+                    <th>Tela / Color</th>
+                    <th class="text-end">Kg reclamados</th>
+                    <th class="text-end">Kg aceptados</th>
+                    <th class="text-end">Diferencia</th>
+                    <th class="text-end">Monto aceptado</th>
+                    <th>Obs</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in nc.items %}
+                {% set m = item.movimiento %}
+                <tr>
+                    <td>{{ m.fecha.strftime('%d/%m/%Y') if m else '-' }}</td>
+                    <td>{{ m.remito_factura if m else '-' }}</td>
+                    <td>{{ m.tipo_tela ~ ' / ' ~ m.color if m else '-' }}</td>
+                    <td class="text-end">{{ item.kg_reclamados()|number }}</td>
+                    <td class="text-end">{{ (item.kg_aceptados or 0)|number }}</td>
+                    <td class="text-end {% if item.kg_diferencia() > 0.01 %}text-danger{% endif %}">
+                        {{ item.kg_diferencia()|number }}
+                    </td>
+                    <td class="text-end">{{ (item.monto_aceptado or 0)|currency }}</td>
+                    <td class="small text-muted">{{ item.observaciones or '' }}</td>
+                </tr>
+                {% endfor %}
+                {% if not nc.items.count() %}
+                <tr><td colspan="8" class="text-center text-muted py-3">Sin items.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

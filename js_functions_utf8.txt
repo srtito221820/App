@@ -1,0 +1,43 @@
+﻿templates\anticipos\detalle.html:function cargarCuentas() {
+templates\anticipos\detalle.html:function eliminarCuenta(id) {
+templates\anticipos\detalle.html:function showAlert(msg, type) {
+templates\anticipos\detalle.html:    formAdd.addEventListener('submit', function(e) {
+templates\compras\form.html:(function() {
+templates\compras\form.html:    function fmtAR(n) {
+templates\compras\form.html:    function num(el) {
+templates\compras\form.html:    function recalcFila(tr) {
+templates\compras\form.html:    function recalcTotales() {
+templates\compras\form.html:    function bindRow(tr) {
+templates\compras\form.html:    function agregarFila(preload) {
+templates\consumos\form.html:document.getElementById('proveedor_id').addEventListener('change', async function() {
+templates\notas_credito\form.html:function syncRowEnabled(tr) {
+templates\notas_credito\form.html:function bindRow(tr) {
+templates\notas_credito\form.html:if (selProv && !selProv.disabled) selProv.addEventListener('change', async function() {
+templates\notas_credito\form.html:function recalcMontoConIVA() {
+templates\pagos\form.html:(function() {
+templates\pagos\form.html:    function fmt(n) {
+templates\pagos\form.html:    function toggleRow(chk) {
+templates\pagos\form.html:    function calcularBruto() {
+templates\pagos\form.html:    function actualizar() {
+templates\panel\editar_tela.html:function fmt(n) { return n.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+templates\panel\editar_tela.html:function calc() {
+templates\panel\index.html:function onProveedorChange() {
+templates\panel\index.html:if (tipoOp) tipoOp.addEventListener('change', function() {
+templates\panel\index.html:function cargarPedidos() {
+templates\panel\index.html:function cargarCuentasAsignacion(anticipoId) {
+templates\panel\index.html:function cargarLineasPedido() {
+templates\panel\index.html:function resetTelaRows() {
+templates\panel\index.html:function buildTipoSelect(selected, filterByPedido) {
+templates\panel\index.html:function buildColorInput(value, filterByPedido, tipoTela) {
+templates\panel\index.html:function addTelaRow(tipo, color, codArt, codColor, precio) {
+templates\panel\index.html:function onTipoChange(sel) {
+templates\panel\index.html:function onColorChange(selColor) {
+templates\panel\index.html:function fmt(n) { return n.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+templates\panel\index.html:function recalcTela() {
+templates\panel\index.html:function bindTelaEvents() {
+templates\panel\index.html:        btn.onclick = function() {
+templates\panel\pedido_form.html:function fmt(n) { return n.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+templates\panel\pedido_form.html:function recalc() {
+templates\panel\pedido_form.html:function bindEvents() {
+templates\panel\pedido_form.html:        btn.onclick = function() {
+templates\stock\list.html:    row.addEventListener('click', function() {

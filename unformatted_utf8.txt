@@ -1,0 +1,13 @@
+﻿templates\base.html:        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+templates\base.html:            {{ message }}
+templates\dashboard.html:                    <h4 class="mb-0">{{ stock_tela|length }}</h4>
+templates\dashboard.html:                    <h4 class="mb-0">{{ saldos|length }}</h4>
+templates\dashboard.html:                            <td>{{ item.tipo_tela }}</td>
+templates\dashboard.html:                            <td class="text-end">{{ item.movimientos }}</td>
+templates\dashboard.html:                        <td>{{ r.anticipo.numero }}</td>
+templates\dashboard.html:                                     style="width: {{ pct }}%">{{ pct }}%</div>
+templates\dashboard.html:                    <td>{{ m.tipo_tela }}</td>
+templates\dashboard.html:                    <td>{{ m.color }}</td>
+templates\dashboard.html:                        <span class="badge badge-reposicion">{{ m.movimiento }}</span>
+templates\login.html:            <div class="alert alert-{{ category }} alert-dismissible fade show py-2" role="alert">
+templates\login.html:                <small>{{ message }}</small>

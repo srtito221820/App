@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+{% block title %}Stock de Tela - Inventario{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Stock de Tela</h4>
+    <div>
+        <a href="{{ url_for('maestro.maestro_list') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-bookmark-star"></i> Maestro Telas</a>
+        <a href="{{ url_for('stock.stock_cuentas') }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-columns-gap"></i> Stock JUMAF / JUMASA</a>
+        {% if proveedor_id or tipo_tela_sel or color_sel or cod_art_sel or cod_color_sel or cuenta_sel %}
+        <a href="{{ url_for('stock.stock') }}" class="btn btn-sm btn-outline-danger"><i class="bi bi-x-lg"></i> Limpiar filtros</a>
+        {% endif %}
+        <a href="{{ url_for('exportar.exportar_stock', tipo_tela=tipo_tela_sel, color=color_sel, cod_art=cod_art_sel, cod_color=cod_color_sel, proveedor_id=proveedor_id) }}" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Exportar Excel</a>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-4">
+        <div class="card stat-card blue">
+            <div class="card-body py-2">
+                <div class="text-muted small">Stock total (Kg)</div>
+                <div class="h5 mb-0">{{ total_kg|number }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card green">
+            <div class="card-body py-2">
+                <div class="text-muted small">Sin Morley/RIBB (Kg)</div>
+                <div class="h5 mb-0">{{ total_kg_sin_morley_ribb|number }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card orange">
+            <div class="card-body py-2">
+                <div class="text-muted small">Piezas (sin Morley/RIBB)</div>
+                <div class="h5 mb-0">{{ total_piezas }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-2">
+    <div class="card-body py-2">
+        <form method="GET" class="row g-2 align-items-end mb-0">
+            {% if proveedor_id %}<input type="hidden" name="proveedor_id" value="{{ proveedor_id }}">{% endif %}
+            {% if tipo_tela_sel %}<input type="hidden" name="tipo_tela" value="{{ tipo_tela_sel }}">{% endif %}
+            {% if color_sel %}<input type="hidden" name="color" value="{{ color_sel }}">{% endif %}
+            {% if cod_art_sel %}<input type="hidden" name="cod_art" value="{{ cod_art_sel }}">{% endif %}
+            {% if cod_color_sel %}<input type="hidden" name="cod_color" value="{{ cod_color_sel }}">{% endif %}
+            <div class="col-md-3">
+                <label class="form-label small mb-0">Cuenta</label>
+                <select name="cuenta" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">Todas</option>
+                    <option value="JUMAF" {% if cuenta_sel == 'JUMAF' %}selected{% endif %}>JUMAF</option>
+                    <option value="JUMASA" {% if cuenta_sel == 'JUMASA' %}selected{% endif %}>JUMASA</option>
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if proveedor_id or tipo_tela_sel or color_sel or cod_art_sel or cod_color_sel %}
+<div class="alert alert-info py-1 small mb-2">
+    <i class="bi bi-funnel-fill"></i>
+    {% if tipo_tela_sel %}<span class="badge bg-success">{{ tipo_tela_sel }}</span> {% endif %}
+    {% if color_sel %}<span class="badge bg-warning text-dark">{{ color_sel }}</span> {% endif %}
+    {% if cod_art_sel %}<span class="badge bg-secondary">Art: {{ cod_art_sel }}</span> {% endif %}
+    {% if cod_color_sel %}<span class="badge bg-secondary">Color: {{ cod_color_sel }}</span> {% endif %}
+    {% if proveedor_id %}{% for p in proveedores %}{% if p.id == proveedor_id %}<span class="badge bg-primary">{{ p.nombre }}</span>{% endif %}{% endfor %}{% endif %}
+    — {{ stock_items|length }} resultado{{ 's' if stock_items|length != 1 else '' }}
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+            <thead>
+                <tr>
+                    <th style="min-width:140px">
+                        <form method="GET" class="mb-0">
+                            {% if proveedor_id %}<input type="hidden" name="proveedor_id" value="{{ proveedor_id }}">{% endif %}
+                            {% if color_sel %}<input type="hidden" name="color" value="{{ color_sel }}">{% endif %}
+                            {% if cod_art_sel %}<input type="hidden" name="cod_art" value="{{ cod_art_sel }}">{% endif %}
+                            {% if cod_color_sel %}<input type="hidden" name="cod_color" value="{{ cod_color_sel }}">{% endif %}
+                            <select name="tipo_tela" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+                                <option value="">TIPO TELA ▾</option>
+                                {% for t in tipos_tela %}
+                                <option value="{{ t }}" {% if tipo_tela_sel == t %}selected{% endif %}>{{ t }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </th>
+                    <th style="min-width:140px">
+                        <form method="GET" class="mb-0">
+                            {% if proveedor_id %}<input type="hidden" name="proveedor_id" value="{{ proveedor_id }}">{% endif %}
+                            {% if tipo_tela_sel %}<input type="hidden" name="tipo_tela" value="{{ tipo_tela_sel }}">{% endif %}
+                            {% if cod_art_sel %}<input type="hidden" name="cod_art" value="{{ cod_art_sel }}">{% endif %}
+                            {% if cod_color_sel %}<input type="hidden" name="cod_color" value="{{ cod_color_sel }}">{% endif %}
+                            <select name="color" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+                                <option value="">COLOR ▾</option>
+                                {% for c in colores %}
+                                <option value="{{ c }}" {% if color_sel == c %}selected{% endif %}>{{ c }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </th>
+                    <th style="min-width:120px">
+                        <form method="GET" class="mb-0">
+                            {% if proveedor_id %}<input type="hidden" name="proveedor_id" value="{{ proveedor_id }}">{% endif %}
+                            {% if tipo_tela_sel %}<input type="hidden" name="tipo_tela" value="{{ tipo_tela_sel }}">{% endif %}
+                            {% if color_sel %}<input type="hidden" name="color" value="{{ color_sel }}">{% endif %}
+                            {% if cod_color_sel %}<input type="hidden" name="cod_color" value="{{ cod_color_sel }}">{% endif %}
+                            <select name="cod_art" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+                                <option value="">COD ART ▾</option>
+                                {% for c in cod_arts %}
+                                <option value="{{ c }}" {% if cod_art_sel == c %}selected{% endif %}>{{ c }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </th>
+                    <th style="min-width:120px">
+                        <form method="GET" class="mb-0">
+                            {% if proveedor_id %}<input type="hidden" name="proveedor_id" value="{{ proveedor_id }}">{% endif %}
+                            {% if tipo_tela_sel %}<input type="hidden" name="tipo_tela" value="{{ tipo_tela_sel }}">{% endif %}
+                            {% if color_sel %}<input type="hidden" name="color" value="{{ color_sel }}">{% endif %}
+                            {% if cod_art_sel %}<input type="hidden" name="cod_art" value="{{ cod_art_sel }}">{% endif %}
+                            <select name="cod_color" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+                                <option value="">COD COLOR ▾</option>
+                                {% for c in cod_colors %}
+                                <option value="{{ c }}" {% if cod_color_sel == c %}selected{% endif %}>{{ c }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </th>
+                    <th style="min-width:150px">
+                        <form method="GET" class="mb-0">
+                            {% if tipo_tela_sel %}<input type="hidden" name="tipo_tela" value="{{ tipo_tela_sel }}">{% endif %}
+                            {% if color_sel %}<input type="hidden" name="color" value="{{ color_sel }}">{% endif %}
+                            {% if cod_art_sel %}<input type="hidden" name="cod_art" value="{{ cod_art_sel }}">{% endif %}
+                            {% if cod_color_sel %}<input type="hidden" name="cod_color" value="{{ cod_color_sel }}">{% endif %}
+                            <select name="proveedor_id" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+                                <option value="">PROVEEDOR ▾</option>
+                                {% for p in proveedores %}
+                                <option value="{{ p.id }}" {% if proveedor_id == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </th>
+                    <th class="text-end">Stock (Kg)</th>
+                    <th class="text-end">Piezas</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set ns = namespace(total_kg=0, total_piezas=0) %}
+                {% for item in stock_items %}
+                {% set ns.total_kg = ns.total_kg + (item.total_kg or 0) %}
+                {% set ns.total_piezas = ns.total_piezas + (item.total_piezas or 0) %}
+                <tr class="stock-row" style="cursor:pointer" title="Click para ver movimientos"
+                    data-tipo="{{ item.tipo_tela }}" data-color="{{ item.color }}"
+                    data-codart="{{ item.cod_art or '' }}" data-codcolor="{{ item.cod_color or '' }}"
+                    data-provid="{{ item.proveedor_id }}">
+                    <td><strong>{{ item.tipo_tela }}</strong></td>
+                    <td>{{ item.color }}</td>
+                    <td>{{ item.cod_art or '-' }}</td>
+                    <td>{{ item.cod_color or '-' }}</td>
+                    <td>{{ item.proveedor_nombre }}</td>
+                    <td class="text-end {% if item.total_kg and item.total_kg < 0 %}text-danger{% endif %}">
+                        {{ item.total_kg|number }}
+                    </td>
+                    <td class="text-end">{{ (item.total_piezas or 0)|integer }}</td>
+                </tr>
+                {% endfor %}
+                {% if not stock_items %}
+                <tr><td colspan="7" class="text-center text-muted py-4">Sin datos de stock.</td></tr>
+                {% endif %}
+            </tbody>
+            {% if stock_items %}
+            <tfoot>
+                <tr class="table-light fw-bold">
+                    <td colspan="5" class="text-end">TOTAL:</td>
+                    <td class="text-end">{{ ns.total_kg|number }}</td>
+                    <td class="text-end">{{ ns.total_piezas|integer }}</td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+        </div>
+    </div>
+</div>
+
+{% block extra_css %}
+<style>
+.stock-row:hover { background-color: #f0f7ff !important; }
+.detail-row td { background-color: #fafbfc; }
+</style>
+{% endblock %}
+
+<script>
+document.querySelectorAll('.stock-row').forEach(row => {
+    row.addEventListener('click', function() {
+        const next = this.nextElementSibling;
+        if (next && next.classList.contains('detail-row')) {
+            next.remove();
+            return;
+        }
+        document.querySelectorAll('.detail-row').forEach(r => r.remove());
+
+        const tipo = this.dataset.tipo;
+        const color = this.dataset.color;
+        const codart = this.dataset.codart;
+        const codcolor = this.dataset.codcolor;
+        const provid = this.dataset.provid;
+
+        const params = new URLSearchParams({
+            tipo_tela: tipo, color: color, proveedor_id: provid,
+            cod_art: codart, cod_color: codcolor
+        });
+
+        const tr = document.createElement('tr');
+        tr.className = 'detail-row';
+        tr.innerHTML = '<td colspan="7" class="p-2"><div class="text-center text-muted py-2"><i class="bi bi-hourglass-split"></i> Cargando...</div></td>';
+        this.after(tr);
+
+        fetch('/api/stock-detalle?' + params.toString())
+            .then(r => r.json())
+            .then(data => {
+                if (!data.length) {
+                    tr.innerHTML = '<td colspan="7" class="text-center text-muted py-2">Sin movimientos.</td>';
+                    return;
+                }
+                let html = '<td colspan="7" class="p-0"><table class="table table-sm mb-0" style="font-size:0.8rem">';
+                html += '<thead class="table-light"><tr><th>Fecha</th><th>Remito/Fact</th><th>Mov.</th><th class="text-end">Kg</th><th class="text-end">Pzas</th><th class="text-end">$/kg</th><th class="text-end">Sub c/IVA</th><th class="text-end">Saldo Kg</th><th>Anticipo</th><th>Pedido</th></tr></thead><tbody>';
+                data.forEach(m => {
+                    const movClass = m.movimiento === 'Devolucion' ? 'text-danger' : '';
+                    html += '<tr class="' + movClass + '">';
+                    html += '<td>' + m.fecha + '</td>';
+                    html += '<td>' + m.remito + '</td>';
+                    html += '<td>' + (m.movimiento === 'Devolucion' ? '<span class="badge bg-warning text-dark">Dev</span>' : '<span class="badge bg-success">Ing</span>') + '</td>';
+                    html += '<td class="text-end">' + m.kg.toFixed(2) + '</td>';
+                    html += '<td class="text-end">' + m.piezas + '</td>';
+                    html += '<td class="text-end">$' + m.precio.toLocaleString('es-AR', {minimumFractionDigits:2}) + '</td>';
+                    html += '<td class="text-end">$' + m.subtotal_iva.toLocaleString('es-AR', {minimumFractionDigits:2}) + '</td>';
+                    html += '<td class="text-end fw-bold">' + m.saldo_kg.toFixed(2) + '</td>';
+                    html += '<td>' + (m.anticipo ? '<span class="badge bg-info">' + m.anticipo + '</span>' : '-') + '</td>';
+                    html += '<td>' + (m.pedido ? '<span class="badge bg-primary">' + m.pedido + '</span>' : '-') + '</td>';
+                    html += '</tr>';
+                });
+                html += '</tbody></table></td>';
+                tr.innerHTML = html;
+            });
+    });
+});
+</script>
+{% endblock %}

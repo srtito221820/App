@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Entorno virtual
+venv/
+.venv/
+env/
+
+# Variables de entorno / secretos
+.env
+.env.local
+.env.*.local
+
+# Base de datos local
+instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Claude Code (config local)
+.claude/settings.local.json
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+*.err
+flask.log
+flask.err

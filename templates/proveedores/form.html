@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar' if proveedor else 'Nuevo' }} Proveedor - Inventario Telas{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <a href="{{ url_for('proveedores.proveedores_list') }}" class="btn btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <h4 class="mb-0">{{ 'Editar' if proveedor else 'Nuevo' }} Proveedor</h4>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Nombre *</label>
+                    <input type="text" name="nombre" class="form-control" required
+                           value="{{ proveedor.nombre if proveedor else '' }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">CUIT</label>
+                    <input type="text" name="cuit" class="form-control" placeholder="XX-XXXXXXXX-X"
+                           value="{{ proveedor.cuit if proveedor else '' }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Categoria</label>
+                    <select name="categoria" class="form-select">
+                        <option value="">Seleccionar...</option>
+                        {% for cat in ['Textiles', 'Avios', 'Servicios', 'Insumos Corte', 'Insumos Quimicos', 'Insumos Expedicion', 'Packaging', 'Elasticos', 'Libreria', 'Diseno'] %}
+                        <option value="{{ cat }}" {% if proveedor and proveedor.categoria == cat %}selected{% endif %}>{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Condicion de Pago (dias)</label>
+                    <input type="number" name="condicion_pago_dias" class="form-control" min="0"
+                           value="{{ proveedor.condicion_pago_dias if proveedor else 30 }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="form-check mt-4">
+                        <input type="checkbox" name="usa_cuentas_asignacion" class="form-check-input" value="1"
+                               {% if proveedor and proveedor.usa_cuentas_asignacion %}checked{% endif %}>
+                        <label class="form-check-label">Usa Cuentas de Asignacion</label>
+                        <div class="form-text">Permite asignar cuentas con kg y $ dentro de cada anticipo</div>
+                    </div>
+                </div>
+            </div>
+            <hr>
+            <h6 class="mb-3 text-muted"><i class="bi bi-receipt"></i> Retenciones Ganancias (RG 830)</h6>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Condicion frente a Ganancias</label>
+                    <select name="condicion_ganancias" class="form-select">
+                        {% for c in ['No Aplica', 'Inscripto', 'No Inscripto', 'Exento'] %}
+                        <option value="{{ c }}" {% if proveedor and proveedor.condicion_ganancias == c %}selected{% elif not proveedor and c == 'No Aplica' %}selected{% endif %}>{{ c }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">Si no aplica retencion, dejar "No Aplica" o "Exento"</div>
+                </div>
+                <div class="col-md-8 mb-3">
+                    <label class="form-label">Concepto habitual de Retencion</label>
+                    <select name="concepto_retencion_id" class="form-select">
+                        <option value="">— Sin concepto —</option>
+                        {% for c in conceptos %}
+                        <option value="{{ c.id }}"
+                            {% if proveedor and proveedor.concepto_retencion_id == c.id %}selected{% endif %}>
+                            {{ c.codigo }} — {{ c.concepto }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">Se usa por defecto al calcular retenciones. Se puede cambiar en cada pago.</div>
+                </div>
+            </div>
+            <hr>
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check-lg"></i> {{ 'Guardar Cambios' if proveedor else 'Crear Proveedor' }}
+            </button>
+            <a href="{{ url_for('proveedores.proveedores_list') }}" class="btn btn-outline-secondary ms-2">Cancelar</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

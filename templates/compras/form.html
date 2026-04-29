@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+{% block title %}{% if factura %}Editar {{ factura.tipo_documento_label() }} de Compras{% else %}Nuevo Comprobante de Compras{% endif %}{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <h4 class="mb-0">
+        <i class="bi bi-receipt"></i>
+        {% if factura %}Editar {{ factura.tipo_documento_label() }} {{ factura.numero_completo() }}{% else %}Nuevo Comprobante de Compras{% endif %}
+    </h4>
+    <div class="ms-auto">
+        <a href="{{ url_for('compras.compras_list') }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+    </div>
+</div>
+
+<form method="POST" id="form-compra">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="card mb-3">
+        <div class="card-header"><strong>Cabecera del Comprobante</strong></div>
+        <div class="card-body">
+            {% set tipo_doc_actual = (factura.tipo_documento if factura else tipo_documento_pre) or 'Factura' %}
+            <div class="row g-3 mb-1">
+                <div class="col-12">
+                    <label class="form-label">Tipo de Documento <span class="text-danger">*</span></label>
+                    <div class="btn-group w-100" role="group" id="tipo-doc-group">
+                        {% for t in tipos_documento %}
+                        <input type="radio" class="btn-check" name="tipo_documento"
+                               id="tipo_doc_{{ t }}" value="{{ t }}"
+                               autocomplete="off"
+                               {% if tipo_doc_actual == t %}checked{% endif %}>
+                        <label class="btn btn-outline-primary" for="tipo_doc_{{ t }}">
+                            {% if t == 'Factura' %}<i class="bi bi-receipt"></i>
+                            {% elif t == 'NotaDebito' %}<i class="bi bi-plus-circle"></i>
+                            {% elif t == 'NotaCredito' %}<i class="bi bi-dash-circle"></i>{% endif %}
+                            {{ tipos_documento_labels[t] }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                    <small class="text-muted" id="tipo-doc-help">
+                        <span data-tipo="Factura">Genera una <strong>deuda</strong> con el proveedor (debe en CC). Pagable desde el módulo de Pagos.</span>
+                        <span data-tipo="NotaDebito" class="d-none"><strong>Nota de Débito</strong>: incrementa la deuda con el proveedor (debe en CC). Pagable como una factura.</span>
+                        <span data-tipo="NotaCredito" class="d-none"><strong>Nota de Crédito</strong>: crédito a favor (haber en CC). Reduce el saldo del proveedor.</span>
+                    </small>
+                </div>
+            </div>
+            <hr class="my-2">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Proveedor <span class="text-danger">*</span></label>
+                    <select name="proveedor_id" class="form-select" required>
+                        <option value="">— Seleccionar —</option>
+                        {% for p in proveedores %}
+                        <option value="{{ p.id }}"
+                            {% if factura and factura.proveedor_id == p.id %}selected{% endif %}>
+                            {{ p.nombre }}{% if p.cuit %} ({{ p.cuit }}){% endif %}
+                            {% if p.condicion_ganancias and p.condicion_ganancias != 'No Aplica' %} — {{ p.condicion_ganancias }}{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Fecha <span class="text-danger">*</span></label>
+                    <input type="date" name="fecha" value="{{ fecha_default }}" class="form-control" required>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Letra</label>
+                    <select name="tipo_comprobante" class="form-select">
+                        {% for t in tipos_comprobante %}
+                        <option value="{{ t }}"
+                            {% if factura and factura.tipo_comprobante == t %}selected{% elif not factura and t == 'A' %}selected{% endif %}>{{ t }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Pto. Venta</label>
+                    <input type="text" name="punto_venta" class="form-control"
+                           placeholder="00001" maxlength="10"
+                           value="{{ factura.punto_venta if factura else '' }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Número</label>
+                    <input type="text" name="numero" class="form-control"
+                           placeholder="00000001" maxlength="20"
+                           value="{{ factura.numero if factura else '' }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Cuenta</label>
+                    <select name="cuenta" class="form-select">
+                        <option value="">—</option>
+                        <option value="JUMAF" {% if factura and factura.cuenta == 'JUMAF' %}selected{% endif %}>JUMAF</option>
+                        <option value="JUMASA" {% if factura and factura.cuenta == 'JUMASA' %}selected{% endif %}>JUMASA</option>
+                    </select>
+                </div>
+                <div class="col-md-10">
+                    <label class="form-label">Observaciones</label>
+                    <input type="text" name="observaciones" class="form-control"
+                           value="{{ factura.observaciones if factura else '' }}">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header d-flex align-items-center">
+            <strong>Ítems del Comprobante</strong>
+            <button type="button" class="btn btn-sm btn-outline-primary ms-auto" id="btn-add-item">
+                <i class="bi bi-plus-lg"></i> Agregar línea
+            </button>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0" id="tabla-items">
+                <thead class="table-light">
+                    <tr>
+                        <th style="min-width:200px;">Descripción *</th>
+                        <th style="width:90px;" class="text-end">Cantidad</th>
+                        <th style="width:120px;" class="text-end">Costo Unit.</th>
+                        <th style="width:130px;" class="text-end">Subtotal neto</th>
+                        <th style="width:90px;" class="text-end">IVA %</th>
+                        <th style="width:120px;" class="text-end">IVA $</th>
+                        <th style="width:120px;" class="text-end">Imp. Int.</th>
+                        <th style="min-width:190px;">Categoría *</th>
+                        <th style="width:40px;"></th>
+                    </tr>
+                </thead>
+                <tbody id="items-body">
+                    <!-- filas dinamicas -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header"><strong>Impuestos adicionales y totales</strong></div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label small">Neto No Gravado</label>
+                    <input type="number" step="0.01" min="0" name="neto_no_gravado"
+                           class="form-control text-end total-trigger"
+                           value="{{ factura.neto_no_gravado if factura else 0 }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Percep. IVA</label>
+                    <input type="number" step="0.01" min="0" name="percep_iva"
+                           class="form-control text-end total-trigger"
+                           value="{{ factura.percep_iva if factura else 0 }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Percep. IIBB</label>
+                    <input type="number" step="0.01" min="0" name="percep_iibb"
+                           class="form-control text-end total-trigger"
+                           value="{{ factura.percep_iibb if factura else 0 }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Otros Impuestos</label>
+                    <input type="number" step="0.01" min="0" name="otros_impuestos"
+                           class="form-control text-end total-trigger"
+                           value="{{ factura.otros_impuestos if factura else 0 }}">
+                </div>
+            </div>
+
+            <hr>
+            <div class="row text-end g-2">
+                <div class="col-md-2 offset-md-6">
+                    <div class="small text-muted">Neto Gravado (base imponible)</div>
+                    <h5 id="tot-neto" class="mb-0">$0,00</h5>
+                </div>
+                <div class="col-md-2">
+                    <div class="small text-muted">IVA + Imp.Internos</div>
+                    <h5 id="tot-impuestos" class="mb-0">$0,00</h5>
+                </div>
+                <div class="col-md-2">
+                    <div class="small text-muted">TOTAL</div>
+                    <h4 id="tot-total" class="mb-0 text-primary">$0,00</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex">
+        <a href="{{ url_for('compras.compras_list') }}" class="btn btn-outline-secondary">Cancelar</a>
+        <button type="submit" class="btn btn-primary ms-auto">
+            <i class="bi bi-check-lg"></i>
+            {% if factura %}Guardar Cambios{% else %}Registrar Comprobante{% endif %}
+        </button>
+    </div>
+</form>
+
+<template id="tpl-item-row">
+    <tr class="item-row">
+        <td><input type="text" name="item_descripcion[]" class="form-control form-control-sm" required></td>
+        <td><input type="number" step="0.01" min="0" name="item_cantidad[]"
+                   class="form-control form-control-sm text-end fld-cantidad" value="1"></td>
+        <td><input type="number" step="0.01" min="0" name="item_costo[]"
+                   class="form-control form-control-sm text-end fld-costo" value="0"></td>
+        <td><input type="number" step="0.01" min="0" name="item_subtotal[]"
+                   class="form-control form-control-sm text-end fld-subtotal" value="0"></td>
+        <td>
+            <select name="item_iva_alicuota[]" class="form-select form-select-sm fld-alicuota">
+                <option value="0">0%</option>
+                <option value="10.5">10,5%</option>
+                <option value="21" selected>21%</option>
+                <option value="27">27%</option>
+            </select>
+        </td>
+        <td><input type="number" step="0.01" min="0" name="item_iva_monto[]"
+                   class="form-control form-control-sm text-end fld-iva" value="0"></td>
+        <td><input type="number" step="0.01" min="0" name="item_imp_internos[]"
+                   class="form-control form-control-sm text-end fld-internos" value="0"></td>
+        <td>
+            <select name="item_categoria[]" class="form-select form-select-sm fld-categoria" required>
+                <option value="">— Seleccionar —</option>
+                {% for c in categorias %}
+                <option value="{{ c }}">{{ c }}</option>
+                {% endfor %}
+            </select>
+        </td>
+        <td class="text-center">
+            <button type="button" class="btn btn-sm btn-outline-danger btn-del-row"
+                    title="Eliminar línea"><i class="bi bi-trash"></i></button>
+        </td>
+    </tr>
+</template>
+
+<script>
+(function() {
+    const tbody = document.getElementById('items-body');
+    const tpl = document.getElementById('tpl-item-row');
+    const btnAdd = document.getElementById('btn-add-item');
+
+    function fmtAR(n) {
+        if (!isFinite(n)) n = 0;
+        return '$' + n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function num(el) {
+        const v = parseFloat((el?.value || '').replace(',', '.'));
+        return isFinite(v) ? v : 0;
+    }
+
+    function recalcFila(tr) {
+        const cant = num(tr.querySelector('.fld-cantidad'));
+        const costo = num(tr.querySelector('.fld-costo'));
+        const subEl = tr.querySelector('.fld-subtotal');
+        const alicEl = tr.querySelector('.fld-alicuota');
+        const ivaEl = tr.querySelector('.fld-iva');
+
+        // Si cantidad y costo > 0, recalculamos subtotal.
+        if (cant > 0 && costo > 0) {
+            subEl.value = (cant * costo).toFixed(2);
+        }
+        const sub = num(subEl);
+        const alic = num(alicEl);
+        ivaEl.value = (sub * alic / 100).toFixed(2);
+        recalcTotales();
+    }
+
+    function recalcTotales() {
+        let neto = 0, iva = 0, internos = 0;
+        tbody.querySelectorAll('tr.item-row').forEach(tr => {
+            neto += num(tr.querySelector('.fld-subtotal'));
+            iva += num(tr.querySelector('.fld-iva'));
+            internos += num(tr.querySelector('.fld-internos'));
+        });
+        const netoNoGrav = num(document.querySelector('[name="neto_no_gravado"]'));
+        const percepIva = num(document.querySelector('[name="percep_iva"]'));
+        const percepIIBB = num(document.querySelector('[name="percep_iibb"]'));
+        const otros = num(document.querySelector('[name="otros_impuestos"]'));
+
+        const impuestos = iva + internos;
+        const total = neto + netoNoGrav + impuestos + percepIva + percepIIBB + otros;
+
+        document.getElementById('tot-neto').textContent = fmtAR(neto);
+        document.getElementById('tot-impuestos').textContent = fmtAR(impuestos);
+        document.getElementById('tot-total').textContent = fmtAR(total);
+    }
+
+    function bindRow(tr) {
+        tr.querySelectorAll('input, select').forEach(el => {
+            el.addEventListener('input', () => {
+                if (el.classList.contains('fld-cantidad') ||
+                    el.classList.contains('fld-costo') ||
+                    el.classList.contains('fld-subtotal') ||
+                    el.classList.contains('fld-alicuota')) {
+                    recalcFila(tr);
+                } else {
+                    recalcTotales();
+                }
+            });
+            el.addEventListener('change', () => recalcFila(tr));
+        });
+        tr.querySelector('.btn-del-row').addEventListener('click', () => {
+            tr.remove();
+            if (tbody.querySelectorAll('tr.item-row').length === 0) {
+                agregarFila();
+            }
+            recalcTotales();
+        });
+    }
+
+    function agregarFila(preload) {
+        const frag = tpl.content.cloneNode(true);
+        const tr = frag.querySelector('tr');
+        if (preload) {
+            tr.querySelector('[name="item_descripcion[]"]').value = preload.descripcion || '';
+            tr.querySelector('.fld-cantidad').value = preload.cantidad ?? 1;
+            tr.querySelector('.fld-costo').value = preload.costo_unitario ?? 0;
+            tr.querySelector('.fld-subtotal').value = preload.subtotal_neto ?? 0;
+            tr.querySelector('.fld-alicuota').value = preload.iva_alicuota ?? 21;
+            tr.querySelector('.fld-iva').value = preload.iva_monto ?? 0;
+            tr.querySelector('.fld-internos').value = preload.imp_internos ?? 0;
+            tr.querySelector('.fld-categoria').value = preload.categoria || '';
+            if (preload.observaciones) {
+                // observaciones van como hidden para no cargar la UI
+                const h = document.createElement('input');
+                h.type = 'hidden';
+                h.name = 'item_observaciones[]';
+                h.value = preload.observaciones;
+                tr.appendChild(h);
+            }
+        }
+        tbody.appendChild(tr);
+        // fila recien insertada
+        const nueva = tbody.lastElementChild;
+        // asegurar campo observaciones hidden existente
+        if (!nueva.querySelector('[name="item_observaciones[]"]')) {
+            const h = document.createElement('input');
+            h.type = 'hidden';
+            h.name = 'item_observaciones[]';
+            h.value = '';
+            nueva.appendChild(h);
+        }
+        bindRow(nueva);
+        recalcTotales();
+    }
+
+    btnAdd.addEventListener('click', () => agregarFila());
+    document.querySelectorAll('.total-trigger').forEach(el => {
+        el.addEventListener('input', recalcTotales);
+    });
+
+    // Precargar filas (en edicion) o al menos una vacia
+    const preload = {{ items_preload|tojson if items_preload is defined else '[]' }};
+    if (preload && preload.length) {
+        preload.forEach(it => agregarFila(it));
+    } else {
+        agregarFila();
+    }
+
+    // Helper visible segun el tipo de documento elegido.
+    function actualizarHelperTipo() {
+        const tipo = document.querySelector('input[name="tipo_documento"]:checked')?.value;
+        document.querySelectorAll('#tipo-doc-help [data-tipo]').forEach(el => {
+            el.classList.toggle('d-none', el.dataset.tipo !== tipo);
+        });
+    }
+    document.querySelectorAll('input[name="tipo_documento"]').forEach(r => {
+        r.addEventListener('change', actualizarHelperTipo);
+    });
+    actualizarHelperTipo();
+})();
+</script>
+{% endblock %}

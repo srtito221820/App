@@ -1,0 +1,362 @@
+{% extends "base.html" %}
+{% block title %}Anticipo {{ anticipo.numero }} - Inventario{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <a href="{{ url_for('anticipos.anticipos_list') }}" class="btn btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <h4 class="mb-0">Anticipo {{ anticipo.numero }}</h4>
+    <span class="ms-3 badge {% if anticipo.estado == 'Abierto' %}bg-warning text-dark{% else %}bg-success{% endif %} fs-6">
+        {{ anticipo.estado }}
+    </span>
+</div>
+
+<!-- Resumen -->
+{% set entregado_valor = anticipo.total_valor_entregado() %}
+{% set entregado_kg = anticipo.total_kg_entregados() %}
+{% set kg_pedidos = anticipo.total_kg_pedidos() %}
+{% set kg_pend = anticipo.kg_pendientes() %}
+{% set pendiente = anticipo.saldo_pendiente() %}
+{% set porcentaje_kg = ((entregado_kg / (anticipo.cant_kg or 1) * 100) if (anticipo.cant_kg or 0) > 0 else 0)|round(1) %}
+{% set porcentaje_val = ((entregado_valor / anticipo.monto * 100) if anticipo.monto > 0 else 0)|round(1) %}
+
+<div class="row mb-4">
+    <div class="col-md-2">
+        <div class="card stat-card blue">
+            <div class="card-body py-2">
+                <div class="text-muted small">Monto</div>
+                <div class="fs-5 fw-bold">{{ anticipo.monto|currency }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stat-card blue">
+            <div class="card-body py-2">
+                <div class="text-muted small">Kg Anticipo</div>
+                <div class="fs-5 fw-bold">{{ (anticipo.cant_kg or 0)|number }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stat-card {% if kg_pedidos > (anticipo.cant_kg or 0) and (anticipo.cant_kg or 0) > 0 %}red{% else %}orange{% endif %}">
+            <div class="card-body py-2">
+                <div class="text-muted small">Kg Pedidos</div>
+                <div class="fs-5 fw-bold">{{ kg_pedidos|number }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stat-card green">
+            <div class="card-body py-2">
+                <div class="text-muted small">Kg Entregados</div>
+                <div class="fs-5 fw-bold">{{ entregado_kg|number }}</div>
+                <div class="small text-muted">{{ entregado_valor|currency }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stat-card {% if kg_pend > 0 %}red{% else %}green{% endif %}">
+            <div class="card-body py-2">
+                <div class="text-muted small">Kg Pendientes</div>
+                <div class="fs-5 fw-bold">{{ kg_pend|number }}</div>
+                <div class="small text-muted">{{ pendiente|currency }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stat-card orange">
+            <div class="card-body py-2">
+                <div class="text-muted small">Avance Kg</div>
+                <div class="fs-5 fw-bold">{{ porcentaje_kg }}%</div>
+                <div class="progress mt-1" style="height: 6px;">
+                    <div class="progress-bar {% if porcentaje_kg >= 100 %}bg-success{% elif porcentaje_kg > 0 %}bg-primary{% endif %}" style="width: {{ [porcentaje_kg, 100]|min }}%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Info del anticipo -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3"><span class="text-muted">Proveedor:</span> <strong>{{ anticipo.proveedor.nombre }}</strong></div>
+            <div class="col-md-2"><span class="text-muted">Fecha:</span> {{ anticipo.fecha.strftime('%d/%m/%Y') }}</div>
+            <div class="col-md-3"><span class="text-muted">Factura:</span> {{ anticipo.numero_factura or '-' }}</div>
+            <div class="col-md-4"><span class="text-muted">Descripcion:</span> {{ anticipo.descripcion or '-' }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Cuentas de Asignacion -->
+{% if anticipo.proveedor.usa_cuentas_asignacion %}
+<div class="card mb-4" id="cuentasAsignacionCard">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <strong><i class="bi bi-journal-text"></i> Cuentas de Asignacion</strong>
+        <span class="text-muted" id="cuentasCount"></span>
+    </div>
+    <div class="card-body p-0">
+        <div id="cuentasAlerts"></div>
+        <table class="table table-sm table-hover mb-0">
+            <thead><tr>
+                <th>Nro Cuenta</th><th>Tipo Tela</th>
+                <th class="text-end">Kg Asig.</th><th class="text-end">Kg Entreg.</th><th class="text-end">Kg Pend.</th>
+                <th class="text-end">$ Asig.</th><th class="text-end">$ Entreg.</th><th class="text-end">$ Pend.</th>
+                <th></th>
+            </tr></thead>
+            <tbody id="cuentasBody"></tbody>
+            <tfoot id="cuentasFoot" class="table-light fw-bold"></tfoot>
+        </table>
+    </div>
+    {% if anticipo.estado == 'Abierto' %}
+    <div class="card-footer bg-light">
+        <form id="formAddCuenta" class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Nro Cuenta *</label>
+                <input type="text" name="numero" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Tipo Tela</label>
+                <select name="tipo_tela" class="form-select form-select-sm">
+                    <option value="">-</option>
+                    {% for t in ['FRISA', 'JERSEY', 'RUSTICO', 'Morley', 'RIBB', 'DEPORTIVO', 'JERSEY 30/1'] %}
+                    <option>{{ t }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Kg Asignados</label>
+                <input type="number" step="0.01" name="cant_kg" class="form-control form-control-sm text-end" value="0">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Monto ($)</label>
+                <input type="number" step="0.01" name="monto" class="form-control form-control-sm text-end" value="0">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-plus-lg"></i> Agregar</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+const ANTICIPO_ID = {{ anticipo.id }};
+const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+const fmt = v => v.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const fmtCur = v => '$' + fmt(v);
+
+function cargarCuentas() {
+    fetch(`/api/anticipo/${ANTICIPO_ID}/cuentas_asignacion`)
+        .then(r => r.json())
+        .then(data => {
+            const body = document.getElementById('cuentasBody');
+            const foot = document.getElementById('cuentasFoot');
+            const count = document.getElementById('cuentasCount');
+            count.textContent = data.length + ' cuenta(s)';
+            if (data.length === 0) {
+                body.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-3">Sin cuentas de asignacion</td></tr>';
+                foot.innerHTML = '';
+                return;
+            }
+            let tKg=0, tKgE=0, tKgP=0, tM=0, tME=0, tMP=0;
+            body.innerHTML = data.map(c => {
+                tKg+=c.cant_kg; tKgE+=c.kg_entregados; tKgP+=c.kg_pendientes;
+                tM+=c.monto; tME+=c.valor_entregado; tMP+=c.saldo_pendiente;
+                return `<tr>
+                    <td class="fw-bold">${c.numero}</td><td>${c.tipo_tela}</td>
+                    <td class="text-end">${fmt(c.cant_kg)}</td>
+                    <td class="text-end text-success">${fmt(c.kg_entregados)}</td>
+                    <td class="text-end ${c.kg_pendientes>0?'text-danger':''}fw-bold">${fmt(c.kg_pendientes)}</td>
+                    <td class="text-end">${fmtCur(c.monto)}</td>
+                    <td class="text-end text-success">${fmtCur(c.valor_entregado)}</td>
+                    <td class="text-end ${c.saldo_pendiente>0?'text-danger':''} fw-bold">${fmtCur(c.saldo_pendiente)}</td>
+                    <td>${c.kg_entregados === 0 ? `<button class="btn btn-sm btn-outline-danger py-0" onclick="eliminarCuenta(${c.id})"><i class="bi bi-trash"></i></button>` : ''}</td>
+                </tr>`;
+            }).join('');
+            foot.innerHTML = `<tr>
+                <td colspan="2" class="text-end">TOTALES:</td>
+                <td class="text-end">${fmt(tKg)}</td><td class="text-end">${fmt(tKgE)}</td><td class="text-end">${fmt(tKgP)}</td>
+                <td class="text-end">${fmtCur(tM)}</td><td class="text-end">${fmtCur(tME)}</td><td class="text-end">${fmtCur(tMP)}</td>
+                <td></td></tr>`;
+        });
+}
+
+function eliminarCuenta(id) {
+    if (!confirm('Eliminar esta cuenta de asignacion?')) return;
+    fetch(`/api/cuentas_asignacion/${id}/eliminar`, {method: 'POST', headers: {'X-CSRFToken': CSRF_TOKEN}})
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) { showAlert(data.error, 'danger'); return; }
+            cargarCuentas();
+        });
+}
+
+function showAlert(msg, type) {
+    const el = document.getElementById('cuentasAlerts');
+    el.innerHTML = `<div class="alert alert-${type} py-1 px-3 mb-0 small">${msg}</div>`;
+    setTimeout(() => el.innerHTML = '', 4000);
+}
+
+const formAdd = document.getElementById('formAddCuenta');
+if (formAdd) {
+    formAdd.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const fd = new FormData(this);
+        fetch(`/api/anticipo/${ANTICIPO_ID}/cuentas_asignacion`, {method: 'POST', body: fd, headers: {'X-CSRFToken': CSRF_TOKEN}})
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) { showAlert(data.error, 'danger'); return; }
+                this.reset();
+                cargarCuentas();
+            });
+    });
+}
+
+cargarCuentas();
+</script>
+{% endif %}
+
+<!-- Pedidos asociados -->
+{% set pedidos = anticipo.pedidos.all() %}
+{% if pedidos %}
+<div class="card mb-4">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <strong><i class="bi bi-clipboard-check"></i> Pedidos asociados</strong>
+        <span class="text-muted">{{ pedidos|length }} pedido(s)</span>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Pedido</th>
+                    <th>Fecha</th>
+                    <th>Estado</th>
+                    <th class="text-end">Kg Pedido</th>
+                    <th class="text-end">Kg Entreg.</th>
+                    <th class="text-end">Kg Pend.</th>
+                    <th class="text-end">$ Total</th>
+                    <th class="text-center">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in pedidos %}
+                {% set p_ke = p.kg_entregados() %}
+                {% set p_kp = p.kg_pendientes() %}
+                <tr>
+                    <td><a href="{{ url_for('pedidos.pedido_detalle', id=p.id) }}" class="fw-bold text-decoration-none">{{ p.numero }}</a></td>
+                    <td>{{ p.fecha.strftime('%d/%m/%Y') }}</td>
+                    <td>
+                        {% if p.estado == 'Pendiente' %}<span class="badge bg-warning text-dark">Pendiente</span>
+                        {% elif p.estado == 'Parcial' %}<span class="badge bg-info">Parcial</span>
+                        {% else %}<span class="badge bg-success">Completo</span>{% endif %}
+                    </td>
+                    <td class="text-end">{{ p.total_kg()|number }}</td>
+                    <td class="text-end text-success">{{ p_ke|number }}</td>
+                    <td class="text-end {% if p_kp > 0 %}text-danger{% else %}text-success{% endif %} fw-bold">{{ p_kp|number }}</td>
+                    <td class="text-end">{{ p.total_valor()|currency }}</td>
+                    <td class="text-center">
+                        <a href="{{ url_for('pedidos.pedido_detalle', id=p.id) }}" class="btn btn-sm btn-outline-info py-0"><i class="bi bi-eye"></i></a>
+                        <a href="{{ url_for('pedidos.pedido_editar', id=p.id) }}" class="btn btn-sm btn-outline-primary py-0"><i class="bi bi-pencil"></i></a>
+                    </td>
+                </tr>
+                {% set entregas_p = p.movimientos.all() %}
+                {% if entregas_p %}
+                <tr>
+                    <td colspan="8" class="p-0">
+                        <div class="px-4 py-2 bg-light">
+                            <div class="small fw-bold text-muted mb-1"><i class="bi bi-receipt me-1"></i>Facturas / Remitos asignados ({{ entregas_p|length }})</div>
+                            <table class="table table-sm table-bordered mb-0" style="font-size:0.8rem">
+                                <thead><tr><th>Fecha</th><th>Remito/Factura</th><th>Tipo Tela</th><th>Color</th><th class="text-end">Kg</th><th class="text-end">Sub c/IVA</th></tr></thead>
+                                <tbody>
+                                {% for me in entregas_p %}
+                                <tr>
+                                    <td>{{ me.fecha.strftime('%d/%m/%Y') }}</td>
+                                    <td class="fw-bold">{{ me.remito_factura or '-' }}</td>
+                                    <td>{{ me.tipo_tela }}</td>
+                                    <td>{{ me.color }}</td>
+                                    <td class="text-end">{{ me.cant_kg|number }}</td>
+                                    <td class="text-end">{{ me.subtotal_iva|currency }}</td>
+                                </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Movimientos asociados -->
+<div class="card">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <strong><i class="bi bi-box-arrow-in-down"></i> Ingresos de Tela asociados a este anticipo</strong>
+        <span class="text-muted">{{ movimientos|length }} movimiento(s)</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Remito/Fact</th>
+                        <th>Tipo Tela</th>
+                        <th>Color</th>
+                        <th>Cod Art</th>
+                        <th class="text-end">Kg</th>
+                        <th class="text-end">Piezas</th>
+                        <th class="text-end">Precio s/IVA</th>
+                        <th class="text-end">Subtotal c/IVA</th>
+                        <th>Temporada</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set ns = namespace(total_kg=0, total_valor=0) %}
+                    {% for m in movimientos %}
+                    {% set ns.total_kg = ns.total_kg + (m.cant_kg or 0) %}
+                    {% set ns.total_valor = ns.total_valor + (m.subtotal_iva or 0) %}
+                    <tr>
+                        <td>{{ m.fecha.strftime('%d/%m/%Y') }}</td>
+                        <td>{{ m.remito_factura or '-' }}</td>
+                        <td>{{ m.tipo_tela }}</td>
+                        <td>{{ m.color }}</td>
+                        <td>{{ m.cod_art or '-' }}</td>
+                        <td class="text-end">{{ m.cant_kg|number }}</td>
+                        <td class="text-end">{{ (m.piezas or 0)|integer }}</td>
+                        <td class="text-end">{{ m.precio_sin_iva|currency }}</td>
+                        <td class="text-end">{{ m.subtotal_iva|currency }}</td>
+                        <td>{{ m.temporada }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% if not movimientos %}
+                    <tr><td colspan="10" class="text-center text-muted py-4">No hay ingresos de tela asociados a este anticipo todavia.</td></tr>
+                    {% endif %}
+                </tbody>
+                {% if movimientos %}
+                <tfoot>
+                    <tr class="table-light fw-bold">
+                        <td colspan="5" class="text-end">TOTALES:</td>
+                        <td class="text-end">{{ ns.total_kg|number }} kg</td>
+                        <td></td>
+                        <td></td>
+                        <td class="text-end">{{ ns.total_valor|currency }}</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="mt-3">
+    <a href="{{ url_for('panel.panel_anticipo_editar', id=anticipo.id) }}" class="btn btn-outline-primary">
+        <i class="bi bi-pencil"></i> Editar Anticipo
+    </a>
+</div>
+{% endblock %}

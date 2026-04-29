@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}Ingreso de Telas - Inventario{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0">Ingreso de Telas</h4>
+    <a href="{{ url_for('panel.panel') }}" class="btn btn-primary">
+        <i class="bi bi-layout-text-sidebar"></i> Ir al Panel Proveedor
+    </a>
+</div>
+<div class="alert alert-info py-2 small">
+    <i class="bi bi-info-circle"></i> Los ingresos, devoluciones y consumos se registran desde el Panel Proveedor. Esta vista es solo consulta.
+</div>
+
+<!-- Filtros -->
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Proveedor</label>
+                <select name="proveedor_id" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    {% for p in proveedores %}
+                    <option value="{{ p.id }}" {% if filtros.proveedor_id == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Tipo Tela</label>
+                <select name="tipo_tela" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    {% for t in tipos_tela %}
+                    <option value="{{ t }}" {% if filtros.tipo_tela == t %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Movimiento</label>
+                <select name="movimiento" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    <option value="Ingreso" {% if filtros.movimiento == 'Ingreso' %}selected{% endif %}>Ingreso</option>
+                    <option value="Devolucion" {% if filtros.movimiento == 'Devolucion' %}selected{% endif %}>Devolucion</option>
+                    <option value="Reposicion" {% if filtros.movimiento == 'Reposicion' %}selected{% endif %}>Reposicion</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Temporada</label>
+                <select name="temporada" class="form-select form-select-sm">
+                    <option value="">Todas</option>
+                    {% for t in temporadas %}
+                    <option value="{{ t }}" {% if filtros.temporada == t %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-sm btn-outline-primary me-1"><i class="bi bi-search"></i> Filtrar</button>
+                <a href="{{ url_for('movimientos.movimientos_list') }}" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Cta</th>
+                        <th>Remito/Fact</th>
+                        <th>Proveedor</th>
+                        <th>Tipo Tela</th>
+                        <th>Color</th>
+                        <th>Cod Art</th>
+                        <th class="text-end">Kg</th>
+                        <th class="text-end">Piezas</th>
+                        <th class="text-end">Precio s/IVA</th>
+                        <th class="text-end">Subtotal c/IVA</th>
+                        <th>Mov.</th>
+                        <th>Temporada</th>
+                        <th class="text-center">Acc.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in movimientos.items %}
+                    <tr>
+                        <td class="text-nowrap">{{ m.fecha.strftime('%d/%m/%Y') }}</td>
+                        <td>{{ m.cuenta }}</td>
+                        <td>{{ m.remito_factura }}</td>
+                        <td>{{ m.proveedor.nombre }}</td>
+                        <td>{{ m.tipo_tela }}</td>
+                        <td>{{ m.color }}</td>
+                        <td>{{ m.cod_art }}</td>
+                        <td class="text-end {% if m.cant_kg < 0 %}text-danger{% endif %}">{{ m.cant_kg|number }}</td>
+                        <td class="text-end">{{ (m.piezas or 0)|integer }}</td>
+                        <td class="text-end">{{ m.precio_sin_iva|currency }}</td>
+                        <td class="text-end">{{ m.subtotal_iva|currency }}</td>
+                        <td>
+                            {% if m.movimiento == 'Ingreso' %}
+                            <span class="badge badge-ingreso">Ingreso</span>
+                            {% elif m.movimiento == 'Devolucion' %}
+                            <span class="badge badge-devolucion">Devolucion</span>
+                            {% else %}
+                            <span class="badge badge-reposicion">{{ m.movimiento }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ m.temporada }}</td>
+                        <td class="text-center text-nowrap">
+                            <a href="{{ url_for('panel.panel_tela_editar', id=m.id) }}" class="btn btn-sm btn-outline-primary" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <form method="POST" action="{{ url_for('panel.panel_tela_eliminar', id=m.id) }}" class="d-inline"
+                                  onsubmit="return confirm('Eliminar este movimiento?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not movimientos.items %}
+                    <tr><td colspan="14" class="text-center text-muted py-4">No hay movimientos.</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% if movimientos.pages > 1 %}
+    <div class="card-footer bg-white">
+        <nav>
+            <ul class="pagination pagination-sm mb-0 justify-content-center">
+                {% if movimientos.has_prev %}
+                <li class="page-item"><a class="page-link" href="?page={{ movimientos.prev_num }}&proveedor_id={{ filtros.proveedor_id or '' }}&tipo_tela={{ filtros.tipo_tela or '' }}&movimiento={{ filtros.movimiento or '' }}&temporada={{ filtros.temporada or '' }}">Anterior</a></li>
+                {% endif %}
+                {% for p in movimientos.iter_pages() %}
+                {% if p %}
+                <li class="page-item {% if p == movimientos.page %}active{% endif %}">
+                    <a class="page-link" href="?page={{ p }}&proveedor_id={{ filtros.proveedor_id or '' }}&tipo_tela={{ filtros.tipo_tela or '' }}&movimiento={{ filtros.movimiento or '' }}&temporada={{ filtros.temporada or '' }}">{{ p }}</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+                {% endif %}
+                {% endfor %}
+                {% if movimientos.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ movimientos.next_num }}&proveedor_id={{ filtros.proveedor_id or '' }}&tipo_tela={{ filtros.tipo_tela or '' }}&movimiento={{ filtros.movimiento or '' }}&temporada={{ filtros.temporada or '' }}">Siguiente</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

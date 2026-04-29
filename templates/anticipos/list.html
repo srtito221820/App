@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Anticipos - Inventario Telas{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0">Anticipos</h4>
+    <a href="{{ url_for('panel.panel') }}" class="btn btn-primary">
+        <i class="bi bi-layout-text-sidebar"></i> Ir al Panel Proveedor
+    </a>
+</div>
+<div class="alert alert-info py-2 small">
+    <i class="bi bi-info-circle"></i> Los anticipos se crean desde el Panel Proveedor (operacion "Factura de Anticipo"). Esta vista es solo consulta.
+</div>
+
+<!-- Filtros -->
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Proveedor</label>
+                <select name="proveedor_id" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    {% for p in proveedores %}
+                    <option value="{{ p.id }}" {% if filtros.proveedor_id == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Estado</label>
+                <select name="estado" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    <option value="Abierto" {% if filtros.estado == 'Abierto' %}selected{% endif %}>Abierto</option>
+                    <option value="Cerrado" {% if filtros.estado == 'Cerrado' %}selected{% endif %}>Cerrado</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-sm btn-outline-primary me-1"><i class="bi bi-search"></i> Filtrar</button>
+                <a href="{{ url_for('anticipos.anticipos_list') }}" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Nro. Anticipo</th>
+                    <th>Fecha</th>
+                    <th>Proveedor</th>
+                    <th>Factura</th>
+                    <th class="text-end">Monto</th>
+                    <th class="text-end">Kg Anticipo</th>
+                    <th class="text-end">Kg Pedidos</th>
+                    <th class="text-end">Kg Entreg.</th>
+                    <th class="text-end">Kg Pend.</th>
+                    <th class="text-end">$ Entregado</th>
+                    <th class="text-end">$ Pendiente</th>
+                    <th>Estado</th>
+                    <th class="text-center">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in anticipos %}
+                {% set entregado = a.total_valor_entregado() %}
+                {% set kg_ent = a.total_kg_entregados() %}
+                {% set kg_ped = a.total_kg_pedidos() %}
+                {% set kg_pend = a.kg_pendientes() %}
+                {% set pendiente = a.saldo_pendiente() %}
+                <tr>
+                    <td><a href="{{ url_for('anticipos.anticipo_detalle', id=a.id) }}" class="fw-bold text-decoration-none">{{ a.numero }}</a></td>
+                    <td>{{ a.fecha.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ a.proveedor.nombre }}</td>
+                    <td>{{ a.numero_factura or '-' }}</td>
+                    <td class="text-end">{{ a.monto|currency }}</td>
+                    <td class="text-end">{{ (a.cant_kg or 0)|number }}</td>
+                    <td class="text-end {% if kg_ped > (a.cant_kg or 0) and (a.cant_kg or 0) > 0 %}text-danger fw-bold{% endif %}">{{ kg_ped|number }}</td>
+                    <td class="text-end text-success">{{ kg_ent|number }}</td>
+                    <td class="text-end {% if kg_pend > 0 %}text-danger{% elif kg_pend <= 0 and kg_ent > 0 %}text-success{% endif %} fw-bold">{{ kg_pend|number }}</td>
+                    <td class="text-end">{{ entregado|currency }}</td>
+                    <td class="text-end fw-bold {% if pendiente > 0 %}text-danger{% elif pendiente <= 0 %}text-success{% endif %}">
+                        {{ pendiente|currency }}
+                    </td>
+                    <td>
+                        {% if a.estado == 'Abierto' %}
+                        <span class="badge bg-warning text-dark">Abierto</span>
+                        {% else %}
+                        <span class="badge bg-success">Cerrado</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center text-nowrap">
+                        <a href="{{ url_for('anticipos.anticipo_detalle', id=a.id) }}" class="btn btn-sm btn-outline-info" title="Detalle">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        <a href="{{ url_for('panel.panel_anticipo_editar', id=a.id) }}" class="btn btn-sm btn-outline-primary" title="Editar">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <form method="POST" action="{{ url_for('panel.panel_anticipo_eliminar', id=a.id) }}" class="d-inline"
+                              onsubmit="return confirm('Eliminar anticipo {{ a.numero }}?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not anticipos %}
+                <tr><td colspan="13" class="text-center text-muted py-4">No hay anticipos cargados.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

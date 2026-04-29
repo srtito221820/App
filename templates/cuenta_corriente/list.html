@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Cuenta Corriente - Inventario{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0">Cuenta Corriente</h4>
+    <a href="{{ url_for('panel.panel', proveedor_id=proveedor_id or '', vista='cc') }}" class="btn btn-primary">
+        <i class="bi bi-layout-text-sidebar"></i> Ir al Panel Proveedor
+    </a>
+</div>
+<div class="alert alert-info py-2 small">
+    <i class="bi bi-info-circle"></i> Las facturas, NC, ND y anticipos se cargan desde el Panel Proveedor. Esta vista es solo consulta.
+</div>
+
+<!-- Selector de proveedor -->
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label small mb-1">Proveedor</label>
+                <select name="proveedor_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">Seleccionar proveedor...</option>
+                    {% for p in proveedores %}
+                    <option value="{{ p.id }}" {% if proveedor_id == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% if proveedor %}
+            <div class="col-md-2">
+                <span class="text-muted small">CUIT:</span> {{ proveedor.cuit or '-' }}
+            </div>
+            <div class="col-md-2">
+                <span class="text-muted small">Plazo:</span> {{ proveedor.condicion_pago_dias }} dias
+            </div>
+            <div class="col-md-4 text-end">
+                {% set saldo = proveedor.saldo_cuenta_corriente() %}
+                <span class="text-muted small">Saldo actual:</span>
+                <span class="fs-5 fw-bold {% if saldo > 0 %}text-danger{% elif saldo < 0 %}text-success{% else %}text-muted{% endif %}">
+                    {{ saldo|currency }}
+                </span>
+                {% if saldo > 0 %}
+                <small class="text-danger">(Debemos)</small>
+                {% elif saldo < 0 %}
+                <small class="text-success">(A favor)</small>
+                {% endif %}
+            </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+{% if proveedor %}
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Tipo</th>
+                    <th>Comprobante</th>
+                    <th>Descripcion</th>
+                    <th class="text-end">Debe</th>
+                    <th class="text-end">Haber</th>
+                    <th class="text-end">Saldo</th>
+                    <th class="text-center">Acc.</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in movimientos %}
+                <tr>
+                    <td>{{ m.fecha.strftime('%d/%m/%Y') }}</td>
+                    <td>
+                        {% if m.tipo == 'Factura' %}
+                        <span class="badge bg-danger">Factura</span>
+                        {% elif m.tipo == 'Pago' %}
+                        <span class="badge bg-success">Pago</span>
+                        {% elif m.tipo == 'Adelanto' %}
+                        <span class="badge bg-info">Adelanto</span>
+                        {% elif m.tipo == 'Nota de Credito' %}
+                        <span class="badge bg-warning text-dark">NC</span>
+                        {% elif m.tipo == 'Nota de Debito' %}
+                        <span class="badge bg-secondary">ND</span>
+                        {% else %}
+                        <span class="badge bg-light text-dark">{{ m.tipo }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ m.numero_comprobante or '-' }}</td>
+                    <td>{{ m.descripcion or '-' }}</td>
+                    <td class="text-end">{% if m.debe %}{{ m.debe|currency }}{% endif %}</td>
+                    <td class="text-end">{% if m.haber %}{{ m.haber|currency }}{% endif %}</td>
+                    <td class="text-end fw-bold {% if saldo_acumulado[loop.index0] > 0 %}text-danger{% elif saldo_acumulado[loop.index0] < 0 %}text-success{% endif %}">
+                        {{ saldo_acumulado[loop.index0]|currency }}
+                    </td>
+                    <td class="text-center text-nowrap">
+                        <a href="{{ url_for('panel.panel_cc_editar', id=m.id) }}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <form method="POST" action="{{ url_for('panel.panel_cc_eliminar', id=m.id) }}" class="d-inline"
+                              onsubmit="return confirm('Eliminar este movimiento?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not movimientos %}
+                <tr><td colspan="8" class="text-center text-muted py-4">No hay movimientos para este proveedor.</td></tr>
+                {% endif %}
+            </tbody>
+            {% if movimientos %}
+            <tfoot>
+                <tr class="table-light fw-bold">
+                    <td colspan="4" class="text-end">TOTALES:</td>
+                    <td class="text-end">{{ movimientos|sum(attribute='debe')|currency }}</td>
+                    <td class="text-end">{{ movimientos|sum(attribute='haber')|currency }}</td>
+                    <td class="text-end {% if saldo_acumulado[-1] > 0 %}text-danger{% elif saldo_acumulado[-1] < 0 %}text-success{% endif %}">
+                        {{ saldo_acumulado[-1]|currency }}
+                    </td>
+                    <td></td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="text-center text-muted py-5">
+    <i class="bi bi-arrow-up fs-1"></i>
+    <p class="mt-2">Selecciona un proveedor para ver su cuenta corriente.</p>
+</div>
+{% endif %}
+{% endblock %}

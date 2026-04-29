@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Inventario Telas{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0">Dashboard</h4>
+</div>
+
+<!-- Accesos Directos -->
+<div class="card mb-4">
+    <div class="card-header bg-white">
+        <h6 class="mb-0"><i class="bi bi-lightning-fill text-warning"></i> Accesos Directos</h6>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <div class="d-grid">
+                    <div class="dropdown">
+                        <button class="btn btn-primary w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-receipt"></i> Cargar Factura
+                        </button>
+                        <ul class="dropdown-menu w-100">
+                            {% for p in proveedores %}
+                            <li><a class="dropdown-item" href="{{ url_for('panel.panel', proveedor_id=p.id, tipo_op='ingreso_tela') }}">{{ p.nombre }}</a></li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="d-grid">
+                    <div class="dropdown">
+                        <button class="btn btn-success w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-cash"></i> Registrar Pago
+                        </button>
+                        <ul class="dropdown-menu w-100">
+                            {% for p in proveedores %}
+                            <li><a class="dropdown-item" href="{{ url_for('pagos.pago_nuevo', proveedor_id=p.id) }}">{{ p.nombre }}</a></li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="d-grid">
+                    <div class="dropdown">
+                        <button class="btn btn-info text-white w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-wallet2"></i> Nuevo Anticipo
+                        </button>
+                        <ul class="dropdown-menu w-100">
+                            {% for p in proveedores %}
+                            <li><a class="dropdown-item" href="{{ url_for('panel.panel', proveedor_id=p.id, tipo_op='anticipo') }}">{{ p.nombre }}</a></li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="d-grid">
+                    <div class="dropdown">
+                        <button class="btn btn-outline-danger w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-arrow-return-left"></i> Nota de Credito
+                        </button>
+                        <ul class="dropdown-menu w-100">
+                            {% for p in proveedores %}
+                            <li><a class="dropdown-item" href="{{ url_for('panel.panel', proveedor_id=p.id, tipo_op='nc_devolucion') }}">{{ p.nombre }}</a></li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card blue p-3">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="text-muted small">Stock Total</div>
+                    <h4 class="mb-0">{{ total_kg|number }} kg</h4>
+                </div>
+                <div class="text-primary"><i class="bi bi-box-seam fs-1"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card green p-3">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="text-muted small">Proveedores Activos</div>
+                    <h4 class="mb-0">{{ total_proveedores|integer }}</h4>
+                </div>
+                <div class="text-success"><i class="bi bi-people fs-1"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card orange p-3">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="text-muted small">Tipos de Tela</div>
+                    <h4 class="mb-0">{{ stock_tela|length }}</h4>
+                </div>
+                <div class="text-warning"><i class="bi bi-grid fs-1"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card red p-3">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="text-muted small">Ctas. con Saldo</div>
+                    <h4 class="mb-0">{{ saldos|length }}</h4>
+                </div>
+                <div class="text-danger"><i class="bi bi-cash-stack fs-1"></i></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Saldos Deuda Proveedores -->
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-white">
+                <h6 class="mb-0"><i class="bi bi-cash-stack text-danger"></i> Proveedores con Deuda</h6>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Proveedor</th>
+                            <th class="text-end">Saldo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set ns = namespace(total_saldo=0) %}
+                        {% for item in saldos %}
+                        {% set ns.total_saldo = ns.total_saldo + item.saldo %}
+                        <tr>
+                            <td>
+                                <a href="{{ url_for('panel.panel', proveedor_id=item.proveedor.id, vista='cc') }}">
+                                    {{ item.proveedor.nombre }}
+                                </a>
+                            </td>
+                            <td class="text-end fw-bold {% if item.saldo > 0 %}text-danger{% elif item.saldo < 0 %}text-success{% endif %}">
+                                {{ item.saldo|currency }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not saldos %}
+                        <tr><td colspan="2" class="text-center text-muted py-3">Sin deudas pendientes</td></tr>
+                        {% endif %}
+                    </tbody>
+                    {% if saldos %}
+                    <tfoot class="table-light">
+                        <tr class="fw-bold">
+                            <td>TOTAL</td>
+                            <td class="text-end {% if ns.total_saldo > 0 %}text-danger{% elif ns.total_saldo < 0 %}text-success{% endif %}">
+                                {{ ns.total_saldo|currency }}
+                            </td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-white">
+                <h6 class="mb-0"><i class="bi bi-clipboard-data"></i> Stock por Tipo de Tela</h6>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Tipo</th>
+                            <th class="text-end">Total Kg</th>
+                            <th class="text-end">Movimientos</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in stock_tela %}
+                        <tr>
+                            <td>{{ item.tipo_tela }}</td>
+                            <td class="text-end">{{ item.total_kg|number }}</td>
+                            <td class="text-end">{{ item.movimientos }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if not stock_tela %}
+                        <tr><td colspan="3" class="text-center text-muted py-3">Sin datos</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Anticipos Abiertos -->
+<div class="card mb-4">
+    <div class="card-header bg-white">
+        <h6 class="mb-0"><i class="bi bi-safe text-warning"></i> Anticipos Abiertos por Proveedor</h6>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Proveedor</th>
+                        <th>Anticipo</th>
+                        <th>Fecha</th>
+                        <th class="text-end">Monto</th>
+                        <th class="text-end">Kg Anticipo</th>
+                        <th class="text-end">Kg Entregados</th>
+                        <th class="text-end">Kg Pendientes</th>
+                        <th class="text-end">$ Entregado</th>
+                        <th class="text-end">$ Pendiente</th>
+                        <th class="text-center">Avance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in resumen_anticipos %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('panel.panel', proveedor_id=r.proveedor.id, vista='anticipos') }}">
+                                {{ r.proveedor.nombre }}
+                            </a>
+                        </td>
+                        <td>{{ r.anticipo.numero }}</td>
+                        <td>{{ r.anticipo.fecha.strftime('%d/%m/%Y') }}</td>
+                        <td class="text-end">{{ r.monto|currency }}</td>
+                        <td class="text-end">{{ r.kg_anticipo|number }} kg</td>
+                        <td class="text-end text-success">{{ r.kg_entregados|number }} kg</td>
+                        <td class="text-end fw-bold {% if r.kg_pendientes > 0 %}text-danger{% endif %}">{{ r.kg_pendientes|number }} kg</td>
+                        <td class="text-end text-success">{{ r.valor_entregado|currency }}</td>
+                        <td class="text-end fw-bold {% if r.pendiente > 0 %}text-warning{% else %}text-success{% endif %}">
+                            {{ r.pendiente|currency }}
+                        </td>
+                        <td class="text-center">
+                            {% set pct = ((r.valor_entregado / r.monto * 100) if r.monto > 0 else 0)|int %}
+                            <div class="progress" style="height: 18px; min-width: 80px;">
+                                <div class="progress-bar {% if pct >= 100 %}bg-success{% elif pct >= 50 %}bg-info{% else %}bg-warning{% endif %}"
+                                     style="width: {{ pct }}%">{{ pct }}%</div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not resumen_anticipos %}
+                    <tr><td colspan="10" class="text-center text-muted py-3">No hay anticipos abiertos</td></tr>
+                    {% endif %}
+                </tbody>
+                {% if resumen_anticipos %}
+                <tfoot class="table-light">
+                    <tr class="fw-bold">
+                        <td colspan="3">TOTALES</td>
+                        <td class="text-end">{{ total_anticipos_monto|currency }}</td>
+                        <td class="text-end">{{ total_anticipos_kg_anticipo|number }} kg</td>
+                        <td class="text-end">{{ total_anticipos_kg|number }} kg</td>
+                        <td class="text-end">{{ total_anticipos_kg_pendientes|number }} kg</td>
+                        <td class="text-end">{{ total_anticipos_entregado|currency }}</td>
+                        <td class="text-end text-warning">{{ total_anticipos_pendiente|currency }}</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Ultimos Movimientos -->
+<div class="card mb-4">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h6 class="mb-0"><i class="bi bi-clock-history"></i> Ultimos Movimientos</h6>
+        <a href="{{ url_for('movimientos.movimientos_list') }}" class="btn btn-sm btn-outline-primary">Ver todos</a>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Proveedor</th>
+                    <th>Tipo Tela</th>
+                    <th>Color</th>
+                    <th class="text-end">Kg</th>
+                    <th>Movimiento</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in ultimos_movimientos %}
+                <tr>
+                    <td>{{ m.fecha.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ m.proveedor.nombre }}</td>
+                    <td>{{ m.tipo_tela }}</td>
+                    <td>{{ m.color }}</td>
+                    <td class="text-end">{{ m.cant_kg|number }}</td>
+                    <td>
+                        {% if m.movimiento == 'Ingreso' %}
+                        <span class="badge badge-ingreso">Ingreso</span>
+                        {% elif m.movimiento == 'Devolucion' %}
+                        <span class="badge badge-devolucion">Devolucion</span>
+                        {% else %}
+                        <span class="badge badge-reposicion">{{ m.movimiento }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

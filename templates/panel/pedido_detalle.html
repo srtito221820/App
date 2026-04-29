@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Pedido {{ pedido.numero }} - {{ anticipo.numero }}{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <a href="{{ url_for('panel.panel', proveedor_id=anticipo.proveedor_id, vista='anticipos') }}" class="btn btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+    <div>
+        <h4 class="mb-0">{{ pedido.numero }}</h4>
+        <small class="text-muted">Anticipo: {{ anticipo.numero }} | {{ anticipo.proveedor.nombre }} | Fecha: {{ pedido.fecha.strftime('%d/%m/%Y') }}</small>
+    </div>
+    <div class="ms-auto">
+        {% if pedido.estado == 'Pendiente' %}<span class="badge bg-warning text-dark fs-6">Pendiente</span>
+        {% elif pedido.estado == 'Parcial' %}<span class="badge bg-info fs-6">Parcial</span>
+        {% else %}<span class="badge bg-success fs-6">Completo</span>{% endif %}
+    </div>
+</div>
+
+<!-- Resumen -->
+<div class="row mb-3">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body py-2">
+                <div class="text-muted small">Kg Pedidos</div>
+                <div class="fs-4 fw-bold">{{ pedido.total_kg()|number }} kg</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body py-2">
+                <div class="text-muted small">$ Pedido</div>
+                <div class="fs-4 fw-bold">{{ pedido.total_valor()|currency }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body py-2">
+                <div class="text-muted small">Kg Entregados</div>
+                <div class="fs-4 fw-bold text-success">{{ pedido.kg_entregados()|number }} kg</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body py-2">
+                <div class="text-muted small">Kg Pendientes</div>
+                {% set kp = pedido.kg_pendientes() %}
+                <div class="fs-4 fw-bold {% if kp > 0 %}text-danger{% else %}text-success{% endif %}">{{ kp|number }} kg</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detalle del pedido -->
+<div class="card mb-3">
+    <div class="card-header bg-white"><strong><i class="bi bi-list-ul"></i> Detalle del Pedido</strong></div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead><tr>
+                <th>Tipo Tela</th><th>Color</th><th>Cod Art</th><th>Cod Color</th>
+                <th class="text-end">Kg Pedido</th><th class="text-end">Kg Entreg.</th><th class="text-end">Kg Pend.</th><th class="text-end">$/kg</th><th class="text-end">Subtotal</th>
+            </tr></thead>
+            <tbody>
+            {% for d in pedido.detalles.all() %}
+            {% set ke = d.kg_entregados() %}
+            {% set kp = d.kg_pendientes() %}
+            <tr>
+                <td><strong>{{ d.tipo_tela }}</strong></td><td>{{ d.color }}</td>
+                <td>{{ d.cod_art or '-' }}</td><td>{{ d.cod_color or '-' }}</td>
+                <td class="text-end">{{ d.cant_kg|number }}</td>
+                <td class="text-end {% if ke > d.cant_kg %}text-danger fw-bold{% elif ke > 0 %}text-success{% endif %}">{{ ke|number }}</td>
+                <td class="text-end {% if kp > 0 %}text-danger{% elif kp == 0 and ke > 0 %}text-success{% endif %}">{{ kp|number }}</td>
+                <td class="text-end">{{ d.precio_unitario|currency }}</td>
+                <td class="text-end">{{ d.subtotal|currency }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+            <tfoot class="table-light">
+                <tr class="fw-bold">
+                    <td colspan="4" class="text-end">TOTAL:</td>
+                    <td class="text-end">{{ pedido.total_kg()|number }} kg</td>
+                    <td class="text-end text-success">{{ pedido.kg_entregados()|number }} kg</td>
+                    <td class="text-end {% if pedido.kg_pendientes() > 0 %}text-danger{% endif %}">{{ pedido.kg_pendientes()|number }} kg</td>
+                    <td></td>
+                    <td class="text-end">{{ pedido.total_valor()|currency }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+<!-- Entregas asociadas -->
+<div class="card">
+    <div class="card-header bg-white"><strong><i class="bi bi-truck"></i> Entregas / Facturas Asociadas</strong></div>
+    <div class="card-body p-0">
+        {% set movs = pedido.movimientos.order_by('fecha').all() %}
+        {% if movs %}
+        <table class="table table-sm mb-0">
+            <thead><tr>
+                <th>Fecha</th><th>Remito</th><th>Tipo Tela</th><th>Color</th>
+                <th class="text-end">Kg</th><th class="text-end">Sub c/IVA</th><th>Mov.</th>
+            </tr></thead>
+            <tbody>
+            {% for m in movs %}
+            <tr>
+                <td>{{ m.fecha.strftime('%d/%m/%Y') }}</td><td>{{ m.remito_factura or '-' }}</td>
+                <td>{{ m.tipo_tela }}</td><td>{{ m.color }}</td>
+                <td class="text-end">{{ m.cant_kg|number }}</td>
+                <td class="text-end">{{ m.subtotal_iva|currency }}</td>
+                <td><span class="badge badge-ingreso">{{ m.movimiento }}</span></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+            <tfoot class="table-light">
+                <tr class="fw-bold">
+                    <td colspan="4" class="text-end">TOTAL ENTREGADO:</td>
+                    <td class="text-end">{{ pedido.kg_entregados()|number }} kg</td>
+                    <td class="text-end">{{ pedido.valor_entregado()|currency }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+        {% else %}
+        <div class="text-center text-muted py-4">Sin entregas asociadas a este pedido.</div>
+        {% endif %}
+    </div>
+</div>
+
+{% if pedido.observaciones %}
+<div class="card mt-3">
+    <div class="card-body">
+        <strong>Observaciones:</strong> {{ pedido.observaciones }}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

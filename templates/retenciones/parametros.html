@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Parametros AFIP - Retenciones Ganancias{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <h4 class="mb-0"><i class="bi bi-gear"></i> Parametros AFIP — RG 830</h4>
+    <div class="ms-auto">
+        <a href="{{ url_for('impuestos.retenciones_historial') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list-ul"></i> Historial</a>
+        <a href="{{ url_for('impuestos.retenciones_calculadora') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-calculator"></i> Calculadora</a>
+    </div>
+</div>
+
+<div class="alert alert-warning">
+    <i class="bi bi-exclamation-triangle"></i> <strong>Importante:</strong>
+    Valores segun Anexo VIII RG 830 (texto actualizado por RG 5423/2023).
+    Verifica la vigencia antes de operar. Modificando solo los numeros, toda la app recalcula automaticamente.
+    Las alicuotas se expresan como decimal (ej: 6% = 0.06).
+</div>
+
+<form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="card mb-4">
+        <div class="card-header"><strong>Tabla de Conceptos</strong></div>
+        <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Codigo</th>
+                        <th>Concepto</th>
+                        <th>MNI Inscripto</th>
+                        <th>Alic. Inscripto</th>
+                        <th>Tipo Ins.</th>
+                        <th>Alic. No Ins.</th>
+                        <th>Tipo No Ins.</th>
+                        <th>Min. Ret. Ins.</th>
+                        <th>Min. Ret. No Ins.</th>
+                        <th>Escala</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in conceptos %}
+                    <tr>
+                        <td><strong>{{ c.codigo }}</strong></td>
+                        <td><small>{{ c.concepto }}</small></td>
+                        <td><input type="number" step="0.01" name="c_{{ c.id }}_mni" value="{{ c.mni_inscripto }}" class="form-control form-control-sm" style="width:110px"></td>
+                        <td><input type="number" step="0.0001" name="c_{{ c.id }}_alic_ins" value="{{ c.alicuota_inscripto }}" class="form-control form-control-sm" style="width:90px"></td>
+                        <td><small>{{ c.tipo_inscripto }}</small></td>
+                        <td><input type="number" step="0.0001" name="c_{{ c.id }}_alic_noins" value="{{ c.alicuota_no_inscripto }}" class="form-control form-control-sm" style="width:90px"></td>
+                        <td><small>{{ c.tipo_no_inscripto }}</small></td>
+                        <td><input type="number" step="0.01" name="c_{{ c.id }}_min_ins" value="{{ c.min_retencion_inscripto }}" class="form-control form-control-sm" style="width:90px"></td>
+                        <td><input type="number" step="0.01" name="c_{{ c.id }}_min_noins" value="{{ c.min_retencion_no_inscripto }}" class="form-control form-control-sm" style="width:90px"></td>
+                        <td><small>{{ c.escala_aplicable }}</small></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header"><strong>Escala General — Codigos 25, 110, 116</strong></div>
+        <div class="table-responsive">
+            <table class="table table-sm mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Desde</th>
+                        <th>Hasta</th>
+                        <th>Monto Fijo</th>
+                        <th>Alicuota Marginal</th>
+                        <th>Excedente sobre</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in escala_general %}
+                    <tr>
+                        <td><input type="number" step="0.01" name="e_{{ e.id }}_desde" value="{{ e.desde }}" class="form-control form-control-sm"></td>
+                        <td><input type="number" step="0.01" name="e_{{ e.id }}_hasta" value="{{ e.hasta }}" class="form-control form-control-sm"></td>
+                        <td><input type="number" step="0.01" name="e_{{ e.id }}_monto_fijo" value="{{ e.monto_fijo }}" class="form-control form-control-sm"></td>
+                        <td><input type="number" step="0.0001" name="e_{{ e.id }}_alic" value="{{ e.alicuota_marginal }}" class="form-control form-control-sm"></td>
+                        <td><input type="number" step="0.01" name="e_{{ e.id }}_excedente" value="{{ e.excedente_sobre }}" class="form-control form-control-sm"></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header"><strong>Escala Especifica — Codigo 119 (Profesiones liberales)</strong></div>
+        <div class="table-responsive">
+            <table class="table table-sm mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Desde</th>
+                        <th>Hasta</th>
+                        <th>Monto Fijo</th>
+                        <th>Alicuota Marginal</th>
+                        <th>Excedente sobre</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in escala_especifica %}
+                    <tr>
+                        <td><input type="number" step="0.01" name="e_{{ e.id }}_desde" value="{{ e.desde }}" class="form-control form-control-sm"></td>
+                        <td><input type="number" step="0.01" name="e_{{ e.id }}_hasta" value="{{ e.hasta }}" class="form-control form-control-sm"></td>
+                        <td><input type="number" step="0.01" name="e_{{ e.id }}_monto_fijo" value="{{ e.monto_fijo }}" class="form-control form-control-sm"></td>
+                        <td><input type="number" step="0.0001" name="e_{{ e.id }}_alic" value="{{ e.alicuota_marginal }}" class="form-control form-control-sm"></td>
+                        <td><input type="number" step="0.01" name="e_{{ e.id }}_excedente" value="{{ e.excedente_sobre }}" class="form-control form-control-sm"></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-end">
+        <a href="{{ url_for('impuestos.retenciones_historial') }}" class="btn btn-outline-secondary me-2">Cancelar</a>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar Cambios</button>
+    </div>
+</form>
+{% endblock %}

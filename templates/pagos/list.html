@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}Pagos a Proveedores{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <h4 class="mb-0"><i class="bi bi-cash-coin"></i> Pagos a Proveedores</h4>
+    <div class="ms-auto">
+        <a href="{{ url_for('pagos.pago_nuevo') }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg"></i> Nuevo Pago
+        </a>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-3">
+        <div class="card stat-card blue">
+            <div class="card-body py-2">
+                <small class="text-muted">Total Bruto</small>
+                <h5 class="mb-0">{{ total_bruto | currency }}</h5>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card red">
+            <div class="card-body py-2">
+                <small class="text-muted">Retenciones</small>
+                <h5 class="mb-0">{{ total_retenciones | currency }}</h5>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card green">
+            <div class="card-body py-2">
+                <small class="text-muted">Total Neto Entregado</small>
+                <h5 class="mb-0">{{ total_neto | currency }}</h5>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card orange">
+            <div class="card-body py-2">
+                <small class="text-muted">Cantidad</small>
+                <h5 class="mb-0">{{ pagos.total }}</h5>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Proveedor</label>
+                <select name="proveedor_id" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    {% for p in proveedores %}
+                    <option value="{{ p.id }}" {% if filtros.proveedor_id == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Agente</label>
+                <select name="agente" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    {% for a in agentes %}
+                    <option value="{{ a.codigo }}" {% if filtros.agente == a.codigo %}selected{% endif %}>{{ a.codigo }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Desde</label>
+                <input type="date" name="desde" value="{{ filtros.desde }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Hasta</label>
+                <input type="date" name="hasta" value="{{ filtros.hasta }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-1">
+                <button type="submit" class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-funnel"></i></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Fecha</th>
+                    <th>OP</th>
+                    <th>Proveedor</th>
+                    <th>Agente</th>
+                    <th>Medio</th>
+                    <th>Referencia</th>
+                    <th class="text-end">Bruto</th>
+                    <th class="text-end">Retencion</th>
+                    <th class="text-end">Neto</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in pagos %}
+                <tr>
+                    <td>{{ p.fecha.strftime('%d/%m/%Y') }}</td>
+                    <td><strong>{{ p.numero }}</strong></td>
+                    <td>{{ p.proveedor.nombre }}</td>
+                    <td><small>{{ p.agente_codigo }}</small></td>
+                    <td><small>{{ p.medio_pago or '—' }}</small></td>
+                    <td><small>{{ p.referencia or '—' }}</small></td>
+                    <td class="text-end">{{ (p.monto_bruto or 0) | currency }}</td>
+                    <td class="text-end text-danger">{{ (p.total_retenciones or 0) | currency }}</td>
+                    <td class="text-end"><strong>{{ (p.monto_neto or 0) | currency }}</strong></td>
+                    <td>
+                        <a href="{{ url_for('pagos.pago_detalle', id=p.id) }}" class="btn btn-sm btn-outline-secondary" title="Ver"><i class="bi bi-eye"></i></a>
+                        <a href="{{ url_for('pagos.pago_imprimir', id=p.id) }}" target="_blank" class="btn btn-sm btn-outline-primary" title="Imprimir OP"><i class="bi bi-printer"></i></a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="10" class="text-center text-muted py-4">No hay pagos registrados.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if pagos.pages and pagos.pages > 1 %}
+<nav class="mt-3">
+    <ul class="pagination pagination-sm justify-content-center">
+        {% set qs = request.args.to_dict() %}
+        {% if pagos.has_prev %}
+            {% set _ = qs.update({'page': pagos.prev_num}) %}
+            <li class="page-item"><a class="page-link" href="?{{ qs|urlencode }}">«</a></li>
+        {% else %}
+            <li class="page-item disabled"><span class="page-link">«</span></li>
+        {% endif %}
+        {% for p in pagos.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+            {% if p %}
+                {% set _ = qs.update({'page': p}) %}
+                <li class="page-item {% if p == pagos.page %}active{% endif %}">
+                    <a class="page-link" href="?{{ qs|urlencode }}">{{ p }}</a>
+                </li>
+            {% else %}
+                <li class="page-item disabled"><span class="page-link">…</span></li>
+            {% endif %}
+        {% endfor %}
+        {% if pagos.has_next %}
+            {% set _ = qs.update({'page': pagos.next_num}) %}
+            <li class="page-item"><a class="page-link" href="?{{ qs|urlencode }}">»</a></li>
+        {% else %}
+            <li class="page-item disabled"><span class="page-link">»</span></li>
+        {% endif %}
+    </ul>
+    <p class="text-center text-muted small mb-0">
+        Pagina {{ pagos.page }} de {{ pagos.pages }} — {{ pagos.total }} pagos en total
+    </p>
+</nav>
+{% endif %}
+{% endblock %}

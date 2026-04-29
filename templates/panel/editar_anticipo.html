@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Editar Anticipo{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <a href="{{ url_for('panel.panel', proveedor_id=anticipo.proveedor_id, vista='anticipos') }}" class="btn btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+    <h4 class="mb-0">Editar Anticipo {{ anticipo.numero }}</h4>
+</div>
+<div class="card">
+    <div class="card-body">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="row">
+                <div class="col-md-2 mb-3">
+                    <label class="form-label">Nro. Anticipo</label>
+                    <input type="text" name="numero" class="form-control" required value="{{ anticipo.numero }}">
+                </div>
+                <div class="col-md-2 mb-3">
+                    <label class="form-label">Fecha</label>
+                    <input type="date" name="fecha" class="form-control" required value="{{ anticipo.fecha.isoformat() }}">
+                </div>
+                <div class="col-md-2 mb-3">
+                    <label class="form-label">Nro. Factura</label>
+                    <input type="text" name="numero_factura" class="form-control" value="{{ anticipo.numero_factura or '' }}">
+                </div>
+                <div class="col-md-2 mb-3">
+                    <label class="form-label">Neto s/IVA ($)</label>
+                    <input type="number" step="0.01" name="neto" class="form-control" id="neto" value="{{ anticipo.neto or 0 }}">
+                </div>
+                <div class="col-md-1 mb-3">
+                    <label class="form-label">IVA %</label>
+                    <input type="number" step="0.01" name="iva_alicuota" class="form-control" id="iva_alicuota" value="{{ anticipo.iva_alicuota or 21 }}">
+                </div>
+                <div class="col-md-2 mb-3">
+                    <label class="form-label">Bruto c/IVA ($)</label>
+                    <input type="text" class="form-control bg-light text-end" id="bruto_display" readonly>
+                    <input type="hidden" name="monto" id="monto" value="{{ anticipo.monto or 0 }}">
+                </div>
+                <div class="col-md-2 mb-3">
+                    <label class="form-label">Kg Anticipo</label>
+                    <input type="number" step="0.01" name="cant_kg" class="form-control" value="{{ anticipo.cant_kg or 0 }}">
+                </div>
+                <div class="col-md-2 mb-3">
+                    <label class="form-label">Estado</label>
+                    <select name="estado" class="form-select">
+                        <option {% if anticipo.estado == 'Abierto' %}selected{% endif %}>Abierto</option>
+                        <option {% if anticipo.estado == 'Cerrado' %}selected{% endif %}>Cerrado</option>
+                    </select>
+                </div>
+                <div class="col-md-12 mb-3">
+                    <label class="form-label">Descripcion</label>
+                    <input type="text" name="descripcion" class="form-control" value="{{ anticipo.descripcion or '' }}">
+                </div>
+            </div>
+            <hr>
+            <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar Cambios</button>
+            <a href="{{ url_for('panel.panel', proveedor_id=anticipo.proveedor_id, vista='anticipos') }}" class="btn btn-outline-secondary ms-2">Cancelar</a>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function recalcBrutoEdit() {
+    const inpNeto = document.getElementById('neto');
+    const inpIva = document.getElementById('iva_alicuota');
+    const inpMonto = document.getElementById('monto');
+    const out = document.getElementById('bruto_display');
+    if (!inpNeto || !inpIva || !inpMonto || !out) return;
+    const neto = parseFloat(inpNeto.value || '0') || 0;
+    const iva = parseFloat(inpIva.value || '0') || 0;
+    const bruto = neto * (1 + iva / 100);
+    inpMonto.value = bruto.toFixed(2);
+    out.value = bruto.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+['neto', 'iva_alicuota'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', recalcBrutoEdit);
+});
+recalcBrutoEdit();
+</script>
+{% endblock %}

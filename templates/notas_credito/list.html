@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Notas de Credito - Inventario{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0"><i class="bi bi-arrow-return-left"></i> Notas de Credito</h4>
+    <a href="{{ url_for('notas_credito.nota_credito_nuevo') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> Nueva NC
+    </a>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label small">Proveedor</label>
+                <select name="proveedor_id" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    {% for p in proveedores %}
+                    <option value="{{ p.id }}" {% if proveedor_id == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6">
+                <button class="btn btn-sm btn-outline-primary"><i class="bi bi-search"></i> Filtrar</button>
+                <a href="{{ url_for('notas_credito.notas_credito_list') }}" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if devoluciones_pendientes %}
+<div class="card mb-3 border-warning">
+    <div class="card-header bg-warning-subtle">
+        <i class="bi bi-exclamation-triangle"></i>
+        <strong>Devoluciones pendientes de NC</strong>
+        <span class="text-muted small">(kg esperados si todas las devoluciones son aceptadas)</span>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Proveedor</th>
+                    <th>Tela / Color</th>
+                    <th class="text-end">Kg reclamados</th>
+                    <th>Remito</th>
+                    <th class="text-end">$ estimativo</th>
+                    <th class="text-center">Accion</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set total_kg = namespace(v=0) %}
+                {% set total_monto = namespace(v=0) %}
+                {% for m in devoluciones_pendientes %}
+                {% set kg = (m.cant_kg or 0)|abs %}
+                {% set monto = kg * (m.precio_sin_iva or 0) %}
+                {% set total_kg.v = total_kg.v + kg %}
+                {% set total_monto.v = total_monto.v + monto %}
+                <tr>
+                    <td>{{ m.fecha.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ m.proveedor.nombre }}</td>
+                    <td>{{ m.tipo_tela }} / {{ m.color }}</td>
+                    <td class="text-end">{{ kg|number }}</td>
+                    <td>{{ m.remito_factura or '-' }}</td>
+                    <td class="text-end">{{ monto|currency }}</td>
+                    <td class="text-center">
+                        <a href="{{ url_for('notas_credito.nota_credito_nuevo', proveedor_id=m.proveedor_id, mov_id=m.id) }}"
+                           class="btn btn-sm btn-outline-primary" title="Asociar a NC">
+                            <i class="bi bi-link-45deg"></i> Asociar
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+                <tr class="table-warning">
+                    <td colspan="3"><strong>Total pendiente</strong></td>
+                    <td class="text-end"><strong>{{ total_kg.v|number }}</strong></td>
+                    <td></td>
+                    <td class="text-end"><strong>{{ total_monto.v|currency }}</strong></td>
+                    <td></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header bg-white"><strong>Notas de Credito emitidas</strong></div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Numero</th>
+                    <th>Proveedor</th>
+                    <th>Cuenta</th>
+                    <th class="text-end">Kg Reclam.</th>
+                    <th class="text-end">Kg Acept.</th>
+                    <th class="text-end">Dif.</th>
+                    <th class="text-end">Monto c/IVA</th>
+                    <th class="text-center">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for nc in ncs %}
+                {% set kg_r = nc.total_kg_reclamados() %}
+                {% set kg_a = nc.total_kg_aceptados() %}
+                <tr>
+                    <td>{{ nc.fecha.strftime('%d/%m/%Y') }}</td>
+                    <td><strong>{{ nc.numero }}</strong></td>
+                    <td>{{ nc.proveedor.nombre }}</td>
+                    <td>{{ nc.cuenta or '-' }}</td>
+                    <td class="text-end">{{ kg_r|number }}</td>
+                    <td class="text-end">{{ kg_a|number }}</td>
+                    <td class="text-end {% if kg_r - kg_a > 0.01 %}text-danger{% endif %}">{{ (kg_r - kg_a)|number }}</td>
+                    <td class="text-end">{{ nc.monto_con_iva|currency }}</td>
+                    <td class="text-center">
+                        <a href="{{ url_for('notas_credito.nota_credito_detalle', id=nc.id) }}" class="btn btn-sm btn-outline-info"><i class="bi bi-eye"></i></a>
+                        <a href="{{ url_for('notas_credito.nota_credito_editar', id=nc.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
+                        <form method="POST" action="{{ url_for('notas_credito.nota_credito_eliminar', id=nc.id) }}" class="d-inline"
+                              onsubmit="return confirm('Eliminar NC {{ nc.numero }} y revertir CC?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not ncs %}
+                <tr><td colspan="9" class="text-center text-muted py-4">Sin notas de credito.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

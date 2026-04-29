@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}{{ factura.tipo_documento_label() }} {{ factura.numero_completo() }}{% endblock %}
+
+{% block content %}
+{% set es_nc = factura.es_nota_credito() %}
+{% set es_nd = factura.es_nota_debito() %}
+<div class="d-flex align-items-center mb-4">
+    <h4 class="mb-0">
+        <i class="bi bi-receipt"></i> {{ factura.tipo_documento_label() }} {{ factura.numero_completo() }}
+        {% if es_nc %}<span class="badge bg-info text-dark ms-2">Crédito</span>
+        {% elif es_nd %}<span class="badge bg-warning text-dark ms-2">Débito</span>{% endif %}
+    </h4>
+    <div class="ms-auto">
+        <a href="{{ url_for('compras.compras_list') }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+        <a href="{{ url_for('compras.compra_editar', id=factura.id) }}" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-pencil"></i> Editar
+        </a>
+        {% if cc and not es_nc %}
+        <a href="{{ url_for('pagos.pago_nuevo', proveedor_id=factura.proveedor_id) }}" class="btn btn-sm btn-outline-success">
+            <i class="bi bi-cash-coin"></i> Pagar
+        </a>
+        {% endif %}
+        <form method="POST" action="{{ url_for('compras.compra_eliminar', id=factura.id) }}"
+              class="d-inline" onsubmit="return confirm('¿Eliminar este comprobante? Se borrará también su asiento en Cuenta Corriente.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash"></i> Eliminar
+            </button>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header"><strong>Cabecera</strong></div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-3">Proveedor</dt>
+                    <dd class="col-sm-9">
+                        {{ factura.proveedor.nombre }}
+                        {% if factura.proveedor.cuit %}<small class="text-muted">({{ factura.proveedor.cuit }})</small>{% endif %}
+                        {% if factura.proveedor.condicion_ganancias and factura.proveedor.condicion_ganancias != 'No Aplica' %}
+                        <span class="badge bg-info ms-2">{{ factura.proveedor.condicion_ganancias }} — Ganancias</span>
+                        {% endif %}
+                    </dd>
+                    <dt class="col-sm-3">Fecha</dt>
+                    <dd class="col-sm-9">{{ factura.fecha.strftime('%d/%m/%Y') }}</dd>
+                    <dt class="col-sm-3">Comprobante</dt>
+                    <dd class="col-sm-9">{{ factura.numero_completo() }}</dd>
+                    <dt class="col-sm-3">Cuenta</dt>
+                    <dd class="col-sm-9">{{ factura.cuenta or '—' }}</dd>
+                    {% if factura.observaciones %}
+                    <dt class="col-sm-3">Observaciones</dt>
+                    <dd class="col-sm-9">{{ factura.observaciones }}</dd>
+                    {% endif %}
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header"><strong>Totales</strong></div>
+            <div class="card-body">
+                <dl class="row mb-0 small">
+                    <dt class="col-7">Neto Gravado (base imponible)</dt>
+                    <dd class="col-5 text-end">{{ (factura.neto_gravado or 0)|currency }}</dd>
+                    <dt class="col-7">Neto No Gravado</dt>
+                    <dd class="col-5 text-end">{{ (factura.neto_no_gravado or 0)|currency }}</dd>
+                    <dt class="col-7">IVA</dt>
+                    <dd class="col-5 text-end">{{ (factura.iva_total or 0)|currency }}</dd>
+                    <dt class="col-7">Imp. Internos</dt>
+                    <dd class="col-5 text-end">{{ (factura.imp_internos_total or 0)|currency }}</dd>
+                    <dt class="col-7">Percep. IVA</dt>
+                    <dd class="col-5 text-end">{{ (factura.percep_iva or 0)|currency }}</dd>
+                    <dt class="col-7">Percep. IIBB</dt>
+                    <dd class="col-5 text-end">{{ (factura.percep_iibb or 0)|currency }}</dd>
+                    <dt class="col-7">Otros Impuestos</dt>
+                    <dd class="col-5 text-end">{{ (factura.otros_impuestos or 0)|currency }}</dd>
+                </dl>
+                <hr class="my-2">
+                <div class="d-flex justify-content-between">
+                    <strong>TOTAL</strong>
+                    <strong class="{% if es_nc %}text-success{% else %}text-primary{% endif %}">
+                        {% if es_nc %}-{% endif %}{{ (factura.total or 0)|currency }}
+                    </strong>
+                </div>
+                {% if cc %}
+                <hr class="my-2">
+                {% if es_nc %}
+                <div class="d-flex justify-content-between small">
+                    <span>Impacto en CC</span>
+                    <span class="text-success">Haber {{ cc.haber|currency }}</span>
+                </div>
+                <div class="mt-2">
+                    <span class="badge bg-info text-dark">Crédito a favor</span>
+                </div>
+                {% else %}
+                <div class="d-flex justify-content-between small">
+                    <span>Aplicado</span>
+                    <span class="text-muted">{{ cc.monto_aplicado()|currency }}</span>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <strong>Saldo pendiente</strong>
+                    <strong>{{ cc.saldo_pendiente()|currency }}</strong>
+                </div>
+                <div class="mt-2">
+                    {% set est = cc.estado_pago() %}
+                    {% if est == 'Pagada' %}<span class="badge bg-success">Pagada</span>
+                    {% elif est == 'Parcial' %}<span class="badge bg-warning text-dark">Parcial</span>
+                    {% elif est == 'Pendiente' %}<span class="badge bg-danger">Pendiente</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><strong>Ítems del Comprobante</strong></div>
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>#</th>
+                    <th>Descripción</th>
+                    <th>Categoría</th>
+                    <th class="text-end">Cant.</th>
+                    <th class="text-end">Costo Unit.</th>
+                    <th class="text-end">Subtotal Neto</th>
+                    <th class="text-end">IVA %</th>
+                    <th class="text-end">IVA $</th>
+                    <th class="text-end">Imp. Int.</th>
+                    <th class="text-end">Total línea</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for it in factura.items %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ it.descripcion }}</td>
+                    <td><span class="badge bg-secondary">{{ it.categoria }}</span></td>
+                    <td class="text-end">{{ (it.cantidad or 0)|number }}</td>
+                    <td class="text-end">{{ (it.costo_unitario or 0)|currency }}</td>
+                    <td class="text-end">{{ (it.subtotal_neto or 0)|currency }}</td>
+                    <td class="text-end">{{ (it.iva_alicuota or 0)|number }}%</td>
+                    <td class="text-end">{{ (it.iva_monto or 0)|currency }}</td>
+                    <td class="text-end">{{ (it.imp_internos or 0)|currency }}</td>
+                    <td class="text-end"><strong>{{ it.total_linea()|currency }}</strong></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="10" class="text-center text-muted py-3">Sin ítems.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

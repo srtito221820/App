@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Factura {{ f.numero_comprobante or f.id }}{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <h4 class="mb-0"><i class="bi bi-receipt"></i> {{ f.tipo }} {{ f.numero_comprobante or ('#' ~ f.id) }}</h4>
+    <div class="ms-auto">
+        <a href="{{ url_for('facturas.facturas_list') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+        <a href="{{ url_for('panel.panel_cc_editar', id=f.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>
+        {% if f.monto_aplicado() <= 0.01 %}
+        <form method="POST" action="{{ url_for('panel.panel_cc_eliminar', id=f.id) }}" class="d-inline" onsubmit="return confirm('¿Eliminar la factura?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Eliminar</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-3">
+            <div class="card-header"><strong>Datos del Comprobante</strong></div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Fecha</dt><dd class="col-sm-8">{{ f.fecha.strftime('%d/%m/%Y') }}</dd>
+                    <dt class="col-sm-4">Tipo</dt><dd class="col-sm-8">{{ f.tipo }}</dd>
+                    <dt class="col-sm-4">Numero</dt><dd class="col-sm-8">{{ f.numero_comprobante or '—' }}</dd>
+                    <dt class="col-sm-4">Proveedor</dt>
+                    <dd class="col-sm-8">
+                        {{ f.proveedor.nombre }}
+                        {% if f.proveedor.cuit %}<br><small class="text-muted">CUIT: {{ f.proveedor.cuit }}</small>{% endif %}
+                    </dd>
+                    <dt class="col-sm-4">Cuenta</dt><dd class="col-sm-8">{{ f.cuenta or '—' }}</dd>
+                    <dt class="col-sm-4">Descripcion</dt><dd class="col-sm-8">{{ f.descripcion or '—' }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card mb-3">
+            <div class="card-header"><strong>Estado de Pago</strong></div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Total Factura</dt>
+                    <dd class="col-sm-7"><strong>${{ "%.2f"|format(f.debe or 0) }}</strong></dd>
+                    <dt class="col-sm-5">Aplicado</dt>
+                    <dd class="col-sm-7 text-muted">${{ "%.2f"|format(f.monto_aplicado()) }}</dd>
+                    <dt class="col-sm-5">Saldo Pendiente</dt>
+                    <dd class="col-sm-7"><strong class="text-{% if f.saldo_pendiente() <= 0.01 %}success{% else %}danger{% endif %}">${{ "%.2f"|format(f.saldo_pendiente()) }}</strong></dd>
+                    <dt class="col-sm-5">Estado</dt>
+                    <dd class="col-sm-7">
+                        {% set est = f.estado_pago() %}
+                        {% if est == 'Pagada' %}<span class="badge bg-success">Pagada</span>
+                        {% elif est == 'Parcial' %}<span class="badge bg-warning text-dark">Parcial</span>
+                        {% elif est == 'Pendiente' %}<span class="badge bg-danger">Pendiente</span>{% endif %}
+                    </dd>
+                </dl>
+                {% if f.saldo_pendiente() > 0.01 %}
+                <a href="{{ url_for('pagos.pago_nuevo', proveedor_id=f.proveedor_id) }}" class="btn btn-primary btn-sm mt-3">
+                    <i class="bi bi-cash-coin"></i> Registrar Pago
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><strong>Pagos Aplicados</strong></div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Fecha</th>
+                    <th>Pago</th>
+                    <th>Medio</th>
+                    <th>Referencia</th>
+                    <th class="text-end">Aplicado</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ap in aplicaciones %}
+                <tr>
+                    <td>{{ ap.pago.fecha.strftime('%d/%m/%Y') }}</td>
+                    <td><strong>{{ ap.pago.numero }}</strong></td>
+                    <td>{{ ap.pago.medio_pago or '—' }}</td>
+                    <td>{{ ap.pago.referencia or '—' }}</td>
+                    <td class="text-end">${{ "%.2f"|format(ap.monto_aplicado) }}</td>
+                    <td>
+                        <a href="{{ url_for('pagos.pago_detalle', id=ap.pago.id) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i></a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-center text-muted py-3">Sin pagos aplicados.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

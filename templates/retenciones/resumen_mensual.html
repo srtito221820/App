@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Resumen Mensual Retenciones Ganancias{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <h4 class="mb-0"><i class="bi bi-bar-chart"></i> Resumen Mensual Retenciones (F.2003 / SICORE)</h4>
+    <div class="ms-auto">
+        <a href="{{ url_for('impuestos.retenciones_historial') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list-ul"></i> Historial</a>
+        <a href="{{ url_for('impuestos.retenciones_calculadora') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-calculator"></i> Calculadora</a>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Mes</label>
+                <input type="month" name="mes" class="form-control form-control-sm" value="{{ mes }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Agente</label>
+                <select name="agente" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    {% for a in agentes %}
+                    <option value="{{ a.cuit }}" {% if agente == a.cuit %}selected{% endif %}>{{ a.razon_social }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-sm btn-primary"><i class="bi bi-search"></i> Ver</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <div class="card stat-card green">
+            <div class="card-body py-2">
+                <small class="text-muted">Monto Sujeto Total del Mes</small>
+                <h4 class="mb-0">{{ total_monto|currency }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card stat-card orange">
+            <div class="card-body py-2">
+                <small class="text-muted">Total Retenido del Mes</small>
+                <h4 class="mb-0">{{ total_retencion|currency }}</h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header"><strong>Agrupado por Proveedor + Concepto</strong></div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Proveedor</th>
+                    <th>CUIT</th>
+                    <th>Cod.</th>
+                    <th>Concepto</th>
+                    <th class="text-end">Operaciones</th>
+                    <th class="text-end">Monto Sujeto</th>
+                    <th class="text-end">Retenido</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for g in grupos %}
+                <tr>
+                    <td>{{ g.proveedor.nombre }}</td>
+                    <td><small>{{ g.proveedor.cuit or '—' }}</small></td>
+                    <td><small>{{ g.concepto.codigo }}</small></td>
+                    <td><small>{{ g.concepto.concepto }}</small></td>
+                    <td class="text-end">{{ g.cantidad }}</td>
+                    <td class="text-end">{{ g.monto_sujeto|currency }}</td>
+                    <td class="text-end fw-bold">{{ g.retencion|currency }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-center text-muted py-4">Sin retenciones en este periodo.</td></tr>
+                {% endfor %}
+            </tbody>
+            {% if grupos %}
+            <tfoot class="table-light">
+                <tr>
+                    <th colspan="5" class="text-end">TOTAL</th>
+                    <th class="text-end">{{ total_monto|currency }}</th>
+                    <th class="text-end">{{ total_retencion|currency }}</th>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><strong>Detalle cronologico del mes</strong></div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Fecha</th>
+                    <th>Proveedor</th>
+                    <th>CUIT</th>
+                    <th>Comprobante</th>
+                    <th>Concepto</th>
+                    <th class="text-end">Monto Sujeto</th>
+                    <th class="text-end">Retencion</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in retenciones %}
+                <tr>
+                    <td>{{ r.fecha.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ r.proveedor.nombre }}</td>
+                    <td><small>{{ r.proveedor.cuit or '—' }}</small></td>
+                    <td><small>{{ r.numero_comprobante }}</small></td>
+                    <td><small>{{ r.concepto.codigo }} — {{ r.concepto.concepto }}</small></td>
+                    <td class="text-end">{{ r.monto_sujeto|currency }}</td>
+                    <td class="text-end fw-bold">{{ r.retencion|currency }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

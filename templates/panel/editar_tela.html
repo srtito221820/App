@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Editar Movimiento de Tela{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <a href="{{ url_for('panel.panel', proveedor_id=m.proveedor_id, vista='tela') }}" class="btn btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+    <h4 class="mb-0">Editar Movimiento de Tela</h4>
+</div>
+<div class="card">
+    <div class="card-body">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="row">
+                <div class="col-md-2 mb-3">
+                    <label class="form-label">Fecha</label>
+                    <input type="date" name="fecha" class="form-control" required value="{{ m.fecha.isoformat() }}">
+                </div>
+                <div class="col-md-1 mb-3">
+                    <label class="form-label">Cuenta</label>
+                    <select name="cuenta" class="form-select">
+                        <option value="">-</option>
+                        <option {% if m.cuenta == 'JUMAF' %}selected{% endif %}>JUMAF</option>
+                        <option {% if m.cuenta == 'JUMASA' %}selected{% endif %}>JUMASA</option>
+                    </select>
+                </div>
+                <div class="col-md-2 mb-3">
+                    <label class="form-label">Remito/Fact</label>
+                    <input type="text" name="remito_factura" class="form-control" value="{{ m.remito_factura or '' }}">
+                </div>
+                <div class="col-md-2 mb-3">
+                    <label class="form-label">Tipo Tela</label>
+                    <select name="tipo_tela" class="form-select">
+                        <option value="">-</option>
+                        {% for t in ['FRISA', 'JERSEY', 'RUSTICO', 'Morley', 'RIBB', 'DEPORTIVO', 'JERSEY 30/1'] %}
+                        <option {% if m.tipo_tela == t %}selected{% endif %}>{{ t }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2 mb-3">
+                    <label class="form-label">Color</label>
+                    <input type="text" name="color" class="form-control" value="{{ m.color or '' }}">
+                </div>
+                <div class="col-md-1 mb-3">
+                    <label class="form-label">Cod Art</label>
+                    <input type="text" name="cod_art" class="form-control" value="{{ m.cod_art or '' }}">
+                </div>
+                <div class="col-md-1 mb-3">
+                    <label class="form-label">Cod Color</label>
+                    <input type="text" name="cod_color" class="form-control" value="{{ m.cod_color or '' }}">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-1 mb-3">
+                    <label class="form-label">Kg</label>
+                    <input type="number" step="0.01" name="cant_kg" class="form-control" value="{{ m.cant_kg }}" id="e_kg">
+                </div>
+                <div class="col-md-1 mb-3">
+                    <label class="form-label">Piezas</label>
+                    <input type="number" name="piezas" class="form-control" value="{{ m.piezas }}">
+                </div>
+                <div class="col-md-1 mb-3">
+                    <label class="form-label">Partida</label>
+                    <input type="text" name="partida" class="form-control" value="{{ m.partida or '' }}">
+                </div>
+                <div class="col-md-1 mb-3">
+                    <label class="form-label">$ s/IVA</label>
+                    <input type="number" step="0.01" name="precio_sin_iva" class="form-control" value="{{ m.precio_sin_iva }}" id="e_psi">
+                </div>
+                <div class="col-md-1 mb-3">
+                    <label class="form-label">$ c/IVA</label>
+                    <input type="text" class="form-control bg-light" id="e_pci_display" readonly>
+                    <input type="hidden" name="precio_con_iva" id="e_pci" value="{{ m.precio_con_iva }}">
+                </div>
+                <div class="col-md-1 mb-3">
+                    <label class="form-label">Subtotal</label>
+                    <input type="text" class="form-control bg-light" id="e_sub_display" readonly>
+                    <input type="hidden" name="subtotal" id="e_sub" value="{{ m.subtotal }}">
+                </div>
+                <div class="col-md-2 mb-3">
+                    <label class="form-label">Subtotal c/IVA</label>
+                    <input type="text" class="form-control bg-light" id="e_subiva_display" readonly>
+                    <input type="hidden" name="subtotal_iva" id="e_subiva" value="{{ m.subtotal_iva }}">
+                </div>
+                <div class="col-md-2 mb-3">
+                    <label class="form-label">Movimiento</label>
+                    <select name="movimiento" class="form-select">
+                        {% for mv in ['Ingreso', 'Devolucion', 'Reposicion'] %}
+                        <option {% if m.movimiento == mv %}selected{% endif %}>{{ mv }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2 mb-3">
+                    <label class="form-label">Temporada</label>
+                    <select name="temporada" class="form-select">
+                        <option value="">-</option>
+                        {% for t in ['Verano 25-26', 'Invierno 26', 'Verano 26-27', 'Invierno 27'] %}
+                        <option {% if m.temporada == t %}selected{% endif %}>{{ t }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Anticipo</label>
+                    <select name="anticipo_id" class="form-select">
+                        <option value="">Sin anticipo</option>
+                        {% for a in anticipos %}
+                        <option value="{{ a.id }}" {% if m.anticipo_id == a.id %}selected{% endif %}>{{ a.numero }} ({{ a.monto|currency }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-5 mb-3">
+                    <label class="form-label">Observaciones</label>
+                    <input type="text" name="observaciones" class="form-control" value="{{ m.observaciones or '' }}">
+                </div>
+            </div>
+            <hr>
+            <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar Cambios</button>
+            <a href="{{ url_for('panel.panel', proveedor_id=m.proveedor_id, vista='tela') }}" class="btn btn-outline-secondary ms-2">Cancelar</a>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const kg = document.getElementById('e_kg');
+const psi = document.getElementById('e_psi');
+const pci = document.getElementById('e_pci');
+const pciD = document.getElementById('e_pci_display');
+const sub = document.getElementById('e_sub');
+const subD = document.getElementById('e_sub_display');
+const subIva = document.getElementById('e_subiva');
+const subIvaD = document.getElementById('e_subiva_display');
+function fmt(n) { return n.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function calc() {
+    const k = parseFloat(kg.value) || 0;
+    const p = parseFloat(psi.value) || 0;
+    const ci = p * 1.21;
+    if (k || p) { pci.value = ci.toFixed(2); pciD.value = '$ ' + fmt(ci); }
+    else { pci.value = ''; pciD.value = ''; }
+    if (k && p) {
+        const s = k * p; const si = k * ci;
+        sub.value = s.toFixed(2); subD.value = '$ ' + fmt(s);
+        subIva.value = si.toFixed(2); subIvaD.value = '$ ' + fmt(si);
+    } else { sub.value = ''; subD.value = ''; subIva.value = ''; subIvaD.value = ''; }
+}
+kg.addEventListener('input', calc);
+psi.addEventListener('input', calc);
+calc();
+</script>
+{% endblock %}

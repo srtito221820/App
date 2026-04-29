@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Stock JUMAF / JUMASA{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="bi bi-columns-gap"></i> Stock por Cuenta (JUMAF / JUMASA)</h4>
+    <a href="{{ url_for('stock.stock') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Stock Agregado</a>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-3">
+        <div class="card stat-card blue">
+            <div class="card-body py-2">
+                <div class="text-muted small">Total JUMAF (Kg)</div>
+                <div class="h5 mb-0">{{ tot_jumaf|number }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card green">
+            <div class="card-body py-2">
+                <div class="text-muted small">Total JUMASA (Kg)</div>
+                <div class="h5 mb-0">{{ tot_jumasa|number }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card orange">
+            <div class="card-body py-2">
+                <div class="text-muted small">Sin cuenta (Kg)</div>
+                <div class="h5 mb-0">{{ tot_sc|number }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card red">
+            <div class="card-body py-2">
+                <div class="text-muted small">Total (sin Morley/RIBB)</div>
+                <div class="h5 mb-0">{{ tot_sin_mr|number }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <form method="GET" class="row g-2 align-items-end mb-0">
+            <div class="col-md-4">
+                <label class="form-label small mb-0">Proveedor</label>
+                <select name="proveedor_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">Todos</option>
+                    {% for p in proveedores %}
+                    <option value="{{ p.id }}" {% if proveedor_id == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small mb-0">Tipo tela</label>
+                <select name="tipo_tela" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">Todos</option>
+                    {% for t in tipos_tela %}
+                    <option value="{{ t }}" {% if tipo_tela_sel == t %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <a href="{{ url_for('stock.stock_cuentas') }}" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th>Tipo</th>
+                    <th>Color</th>
+                    <th>Cod Art</th>
+                    <th>Proveedor</th>
+                    <th class="text-end bg-primary-subtle">JUMAF Kg</th>
+                    <th class="text-end bg-primary-subtle">JUMAF Pzas</th>
+                    <th class="text-end bg-success-subtle">JUMASA Kg</th>
+                    <th class="text-end bg-success-subtle">JUMASA Pzas</th>
+                    <th class="text-end">S/cta Kg</th>
+                    <th class="text-end fw-bold">Total Kg</th>
+                    <th class="text-end">Total Pzas</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for i in items %}
+                <tr>
+                    <td>
+                        <strong>{{ i.tipo_tela }}</strong>
+                        {% if not i.cuenta_piezas %}<span class="badge bg-secondary ms-1" title="Solo kg">solo kg</span>{% endif %}
+                    </td>
+                    <td>{{ i.color }}</td>
+                    <td><code>{{ i.cod_art or '-' }}</code></td>
+                    <td>{{ i.proveedor_nombre }}</td>
+                    <td class="text-end">{{ i.jumaf_kg|number }}</td>
+                    <td class="text-end">{{ i.jumaf_pzas|integer if i.cuenta_piezas else '-' }}</td>
+                    <td class="text-end">{{ i.jumasa_kg|number }}</td>
+                    <td class="text-end">{{ i.jumasa_pzas|integer if i.cuenta_piezas else '-' }}</td>
+                    <td class="text-end text-muted">{{ i.sc_kg|number }}</td>
+                    <td class="text-end fw-bold">{{ i.total_kg|number }}</td>
+                    <td class="text-end">{{ i.total_piezas|integer if i.cuenta_piezas else '-' }}</td>
+                </tr>
+                {% endfor %}
+                {% if not items %}
+                <tr><td colspan="11" class="text-center text-muted py-4">Sin datos.</td></tr>
+                {% endif %}
+            </tbody>
+            {% if items %}
+            <tfoot>
+                <tr class="table-light fw-bold">
+                    <td colspan="4" class="text-end">TOTAL</td>
+                    <td class="text-end">{{ tot_jumaf|number }}</td>
+                    <td></td>
+                    <td class="text-end">{{ tot_jumasa|number }}</td>
+                    <td></td>
+                    <td class="text-end">{{ tot_sc|number }}</td>
+                    <td class="text-end">{{ tot_general|number }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

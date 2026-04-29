@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar' if tela else 'Nueva' }} Tela (Maestro){% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <a href="{{ url_for('maestro.maestro_list') }}" class="btn btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+    <h4 class="mb-0">{{ 'Editar' if tela else 'Nueva' }} Tela del Maestro</h4>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Proveedor</label>
+                    <select name="proveedor_id" class="form-select">
+                        <option value="">— Sin proveedor —</option>
+                        {% for p in proveedores %}
+                        <option value="{{ p.id }}" {% if tela and tela.proveedor_id == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Tipo de tela *</label>
+                    <input type="text" name="tipo_tela" class="form-control" required
+                           value="{{ tela.tipo_tela if tela else '' }}">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Codigo Articulo</label>
+                    <input type="text" name="cod_art" class="form-control"
+                           value="{{ tela.cod_art if tela else '' }}">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Color *</label>
+                    <input type="text" name="color" class="form-control" required
+                           value="{{ tela.color if tela else '' }}">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Codigo Color</label>
+                    <input type="text" name="cod_color" class="form-control"
+                           value="{{ tela.cod_color if tela else '' }}">
+                </div>
+                <div class="col-md-8 mb-3">
+                    <label class="form-label">Descripcion</label>
+                    <input type="text" name="descripcion" class="form-control"
+                           value="{{ tela.descripcion if tela else '' }}">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="form-check mt-4">
+                        <input type="checkbox" name="cuenta_piezas" value="1" class="form-check-input"
+                               {% if (tela and tela.cuenta_piezas) or not tela %}checked{% endif %}>
+                        <label class="form-check-label">Cuenta piezas</label>
+                        <div class="form-text">Desmarcar para telas tipo Morley/RIBB (solo kg).</div>
+                    </div>
+                </div>
+            </div>
+            <hr>
+            <button class="btn btn-primary"><i class="bi bi-check-lg"></i> {{ 'Guardar' if tela else 'Crear' }}</button>
+            <a href="{{ url_for('maestro.maestro_list') }}" class="btn btn-outline-secondary ms-2">Cancelar</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar' if pedido else 'Nuevo' }} Pedido - {{ anticipo.numero }}{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <a href="{{ url_for('panel.panel', proveedor_id=anticipo.proveedor_id, vista='anticipos') }}" class="btn btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+    <div>
+        <h4 class="mb-0">{{ 'Editar' if pedido else 'Nuevo' }} Pedido</h4>
+        <small class="text-muted">Anticipo: {{ anticipo.numero }} | {{ anticipo.proveedor.nombre }} | Monto: {{ anticipo.monto|currency }} | {{ (anticipo.cant_kg or 0)|number }} kg</small>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST" id="pedidoForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="row mb-3">
+                <div class="col-md-2">
+                    <label class="form-label">Nro. Pedido</label>
+                    <input type="text" name="numero" class="form-control" required
+                           value="{{ pedido.numero if pedido else 'Pedido #' ~ (anticipo.pedidos.count() + 1) }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Fecha</label>
+                    <input type="date" name="fecha" class="form-control" required
+                           value="{{ pedido.fecha.isoformat() if pedido else today }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Observaciones</label>
+                    <input type="text" name="observaciones" class="form-control"
+                           value="{{ pedido.observaciones or '' if pedido else '' }}">
+                </div>
+                {% if pedido %}
+                <div class="col-md-2">
+                    <label class="form-label">Estado</label>
+                    <select name="estado" class="form-select">
+                        {% for e in ['Pendiente', 'Parcial', 'Completo'] %}
+                        <option {% if pedido.estado == e %}selected{% endif %}>{{ e }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+            </div>
+
+            <h6><i class="bi bi-list-ul"></i> Detalle del Pedido</h6>
+            <table class="table table-sm" id="detalleTable">
+                <thead>
+                    <tr>
+                        <th style="width:18%">Tipo Tela</th>
+                        <th style="width:18%">Color</th>
+                        <th style="width:12%">Cod Art</th>
+                        <th style="width:12%">Cod Color</th>
+                        <th style="width:12%" class="text-end">Kg</th>
+                        <th style="width:12%" class="text-end">$/kg</th>
+                        <th style="width:12%" class="text-end">Subtotal</th>
+                        <th style="width:4%"></th>
+                    </tr>
+                </thead>
+                <tbody id="detalleBody">
+                    {% if pedido %}
+                    {% for d in pedido.detalles.all() %}
+                    <tr class="detalle-row">
+                        <td>
+                            <select name="tipo_tela[]" class="form-select form-select-sm">
+                                <option value="">-</option>
+                                {% for t in ['FRISA', 'JERSEY', 'RUSTICO', 'Morley', 'RIBB', 'DEPORTIVO', 'JERSEY 30/1'] %}
+                                <option {% if d.tipo_tela == t %}selected{% endif %}>{{ t }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td><input type="text" name="color[]" class="form-control form-control-sm" value="{{ d.color or '' }}"></td>
+                        <td><input type="text" name="cod_art[]" class="form-control form-control-sm" value="{{ d.cod_art or '' }}"></td>
+                        <td><input type="text" name="cod_color[]" class="form-control form-control-sm" value="{{ d.cod_color or '' }}"></td>
+                        <td><input type="number" step="0.01" name="cant_kg[]" class="form-control form-control-sm text-end kg-input" value="{{ d.cant_kg }}"></td>
+                        <td><input type="number" step="0.01" name="precio[]" class="form-control form-control-sm text-end precio-input" value="{{ d.precio_unitario }}"></td>
+                        <td><input type="text" class="form-control form-control-sm text-end bg-light sub-display" readonly value="{{ d.subtotal|currency }}"><input type="hidden" name="subtotal[]" class="sub-hidden" value="{{ d.subtotal }}"></td>
+                        <td><button type="button" class="btn btn-sm btn-outline-danger py-0 btn-remove-row"><i class="bi bi-x"></i></button></td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr class="detalle-row">
+                        <td>
+                            <select name="tipo_tela[]" class="form-select form-select-sm">
+                                <option value="">-</option>
+                                {% for t in ['FRISA', 'JERSEY', 'RUSTICO', 'Morley', 'RIBB', 'DEPORTIVO', 'JERSEY 30/1'] %}
+                                <option>{{ t }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td><input type="text" name="color[]" class="form-control form-control-sm" value=""></td>
+                        <td><input type="text" name="cod_art[]" class="form-control form-control-sm" value=""></td>
+                        <td><input type="text" name="cod_color[]" class="form-control form-control-sm" value=""></td>
+                        <td><input type="number" step="0.01" name="cant_kg[]" class="form-control form-control-sm text-end kg-input" value=""></td>
+                        <td><input type="number" step="0.01" name="precio[]" class="form-control form-control-sm text-end precio-input" value=""></td>
+                        <td><input type="text" class="form-control form-control-sm text-end bg-light sub-display" readonly><input type="hidden" name="subtotal[]" class="sub-hidden"></td>
+                        <td><button type="button" class="btn btn-sm btn-outline-danger py-0 btn-remove-row"><i class="bi bi-x"></i></button></td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+                <tfoot>
+                    <tr class="table-light fw-bold">
+                        <td colspan="4" class="text-end">TOTALES:</td>
+                        <td class="text-end" id="totalKg">0.00</td>
+                        <td></td>
+                        <td class="text-end" id="totalSub">$0.00</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <button type="button" class="btn btn-sm btn-outline-primary mb-3" id="btnAddRow">
+                <i class="bi bi-plus-lg"></i> Agregar linea
+            </button>
+
+            <hr>
+            <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> {{ 'Guardar Cambios' if pedido else 'Crear Pedido' }}</button>
+            <a href="{{ url_for('panel.panel', proveedor_id=anticipo.proveedor_id, vista='anticipos') }}" class="btn btn-outline-secondary ms-2">Cancelar</a>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const ROW_TEMPLATE = `<tr class="detalle-row">
+    <td><select name="tipo_tela[]" class="form-select form-select-sm">
+        <option value="">-</option>
+        <option>FRISA</option><option>JERSEY</option><option>RUSTICO</option>
+        <option>Morley</option><option>RIBB</option><option>DEPORTIVO</option><option>JERSEY 30/1</option>
+    </select></td>
+    <td><input type="text" name="color[]" class="form-control form-control-sm"></td>
+    <td><input type="text" name="cod_art[]" class="form-control form-control-sm"></td>
+    <td><input type="text" name="cod_color[]" class="form-control form-control-sm"></td>
+    <td><input type="number" step="0.01" name="cant_kg[]" class="form-control form-control-sm text-end kg-input"></td>
+    <td><input type="number" step="0.01" name="precio[]" class="form-control form-control-sm text-end precio-input"></td>
+    <td><input type="text" class="form-control form-control-sm text-end bg-light sub-display" readonly><input type="hidden" name="subtotal[]" class="sub-hidden"></td>
+    <td><button type="button" class="btn btn-sm btn-outline-danger py-0 btn-remove-row"><i class="bi bi-x"></i></button></td>
+</tr>`;
+
+function fmt(n) { return n.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+
+function recalc() {
+    let totalKg = 0, totalSub = 0;
+    document.querySelectorAll('.detalle-row').forEach(row => {
+        const kg = parseFloat(row.querySelector('.kg-input')?.value) || 0;
+        const precio = parseFloat(row.querySelector('.precio-input')?.value) || 0;
+        const sub = kg * precio;
+        const display = row.querySelector('.sub-display');
+        const hidden = row.querySelector('.sub-hidden');
+        if (display) display.value = sub ? '$ ' + fmt(sub) : '';
+        if (hidden) hidden.value = sub ? sub.toFixed(2) : '';
+        totalKg += kg;
+        totalSub += sub;
+    });
+    document.getElementById('totalKg').textContent = fmt(totalKg) + ' kg';
+    document.getElementById('totalSub').textContent = '$ ' + fmt(totalSub);
+}
+
+document.getElementById('btnAddRow').addEventListener('click', () => {
+    document.getElementById('detalleBody').insertAdjacentHTML('beforeend', ROW_TEMPLATE);
+    bindEvents();
+});
+
+function bindEvents() {
+    document.querySelectorAll('.kg-input, .precio-input').forEach(el => {
+        el.removeEventListener('input', recalc);
+        el.addEventListener('input', recalc);
+    });
+    document.querySelectorAll('.btn-remove-row').forEach(btn => {
+        btn.onclick = function() {
+            if (document.querySelectorAll('.detalle-row').length > 1) {
+                this.closest('tr').remove();
+                recalc();
+            }
+        };
+    });
+}
+
+bindEvents();
+recalc();
+</script>
+{% endblock %}

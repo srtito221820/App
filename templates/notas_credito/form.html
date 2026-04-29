@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}{% if nc %}Editar NC {{ nc.numero }}{% else %}Nueva Nota de Credito{% endif %}{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <a href="{{ url_for('notas_credito.notas_credito_list') }}" class="btn btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+    <h4 class="mb-0"><i class="bi bi-arrow-return-left"></i> {% if nc %}Editar NC {{ nc.numero }}{% else %}Nueva Nota de Credito{% endif %}</h4>
+</div>
+
+{% if not nc %}
+<div class="alert alert-info py-2 small">
+    <i class="bi bi-info-circle"></i> Si la NC es por <strong>diferencia de precio</strong> (sin devolucion), deja los items sin seleccionar y solo completa los montos.
+</div>
+{% endif %}
+
+<form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="card mb-3">
+        <div class="card-header bg-white"><strong>Datos de la NC</strong></div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Fecha *</label>
+                    <input type="date" name="fecha" class="form-control" value="{% if nc %}{{ nc.fecha.strftime('%Y-%m-%d') }}{% endif %}" required>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Numero *</label>
+                    <input type="text" name="numero" class="form-control" placeholder="NC-0001-..." value="{% if nc %}{{ nc.numero }}{% endif %}" required>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Proveedor *</label>
+                    <select name="proveedor_id" id="proveedor_id" class="form-select" {% if nc %}disabled{% endif %} required>
+                        <option value="">Seleccionar...</option>
+                        {% for p in proveedores %}
+                        <option value="{{ p.id }}" {% if proveedor_pre == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if nc %}<input type="hidden" name="proveedor_id" value="{{ nc.proveedor_id }}">{% endif %}
+                </div>
+                <div class="col-md-2 mb-3">
+                    <label class="form-label">Cuenta</label>
+                    <select name="cuenta" class="form-select">
+                        <option value="">—</option>
+                        <option value="JUMAF" {% if nc and nc.cuenta == 'JUMAF' %}selected{% endif %}>JUMAF</option>
+                        <option value="JUMASA" {% if nc and nc.cuenta == 'JUMASA' %}selected{% endif %}>JUMASA</option>
+                    </select>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Monto s/IVA *</label>
+                    <input type="number" name="monto_total" id="monto_total" step="0.01" class="form-control" value="{% if nc %}{{ nc.monto_total }}{% endif %}" required>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">IVA</label>
+                    <input type="number" name="iva" id="iva" step="0.01" class="form-control" value="{% if nc %}{{ nc.iva }}{% else %}0{% endif %}">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Monto c/IVA (impacta en CC)</label>
+                    <input type="number" name="monto_con_iva" id="monto_con_iva" step="0.01" class="form-control" value="{% if nc %}{{ nc.monto_con_iva }}{% endif %}">
+                </div>
+                <div class="col-md-12 mb-3">
+                    <label class="form-label">Observaciones</label>
+                    <textarea name="observaciones" class="form-control" rows="2">{% if nc %}{{ nc.observaciones or '' }}{% endif %}</textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if not nc %}
+    <div class="card mb-3">
+        <div class="card-header bg-white">
+            <strong>Devoluciones vinculadas</strong>
+            <small class="text-muted"> — ingresar los kg que el proveedor efectivamente acepta. (Opcional si la NC es por diferencia de precio.)</small>
+        </div>
+        <div class="card-body p-0">
+            <table class="table mb-0 align-middle" id="tbl-devoluciones">
+                <thead>
+                    <tr>
+                        <th style="width:30px;"></th>
+                        <th>Fecha</th>
+                        <th>Remito</th>
+                        <th>Tela / Color</th>
+                        <th class="text-end">Kg reclamados</th>
+                        <th class="text-end" style="width:140px;">Kg aceptados</th>
+                        <th class="text-end" style="width:140px;">Monto s/IVA</th>
+                        <th>Obs</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-devs">
+                    {% for m in devoluciones %}
+                    <tr>
+                        <td class="text-center">
+                            <input type="checkbox" class="form-check-input chk-dev"
+                                   data-id="{{ m.id }}"
+                                   data-kg="{{ (m.cant_kg or 0)|abs }}"
+                                   data-precio="{{ m.precio_sin_iva or 0 }}"
+                                   {% if m.id in mov_pre_ids %}checked{% endif %}>
+                        </td>
+                        <td>{{ m.fecha.strftime('%d/%m/%Y') }}</td>
+                        <td>{{ m.remito_factura or '-' }}</td>
+                        <td>{{ m.tipo_tela }} / {{ m.color }}</td>
+                        <td class="text-end">{{ (m.cant_kg or 0)|abs|number }}</td>
+                        <td>
+                            <input type="hidden" name="mov_id[]" value="{{ m.id }}" class="inp-movid" disabled>
+                            <input type="number" name="kg_aceptado[]" class="form-control form-control-sm text-end inp-kgac"
+                                   step="0.01" min="0" value="{{ (m.cant_kg or 0)|abs }}" disabled>
+                        </td>
+                        <td>
+                            <input type="number" name="monto_aceptado[]" class="form-control form-control-sm text-end inp-monto"
+                                   step="0.01" min="0" value="{{ ((m.cant_kg or 0)|abs) * (m.precio_sin_iva or 0) }}" disabled>
+                        </td>
+                        <td>
+                            <input type="text" name="obs_item[]" class="form-control form-control-sm inp-obs" disabled>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not devoluciones %}
+                    <tr><td colspan="8" class="text-center text-muted py-3" id="sin-devs">
+                        Seleccione un proveedor para listar sus devoluciones pendientes.
+                    </td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <button class="btn btn-primary"><i class="bi bi-check-lg"></i> {% if nc %}Actualizar NC{% else %}Guardar NC{% endif %}</button>
+    <a href="{{ url_for('notas_credito.notas_credito_list') }}" class="btn btn-outline-secondary ms-2">Cancelar</a>
+</form>
+
+{% block scripts %}
+<script>
+function syncRowEnabled(tr) {
+    const chk = tr.querySelector('.chk-dev');
+    const enabled = chk && chk.checked;
+    tr.querySelectorAll('.inp-movid, .inp-kgac, .inp-monto, .inp-obs').forEach(i => {
+        i.disabled = !enabled;
+    });
+}
+
+function bindRow(tr) {
+    const chk = tr.querySelector('.chk-dev');
+    if (!chk) return;
+    syncRowEnabled(tr);
+    chk.addEventListener('change', () => syncRowEnabled(tr));
+}
+
+document.querySelectorAll('#tbody-devs tr').forEach(bindRow);
+
+// Completar fecha por defecto
+document.addEventListener('DOMContentLoaded', () => {
+    const inp = document.querySelector('input[name=fecha]');
+    if (inp && !inp.value) inp.value = new Date().toISOString().slice(0, 10);
+});
+
+// Si cambia el proveedor y no es la precarga, recargar devoluciones via AJAX
+const selProv = document.getElementById('proveedor_id');
+if (selProv && !selProv.disabled) selProv.addEventListener('change', async function() {
+    const pid = this.value;
+    const tbody = document.getElementById('tbody-devs');
+    tbody.innerHTML = '';
+    if (!pid) return;
+    const r = await fetch(`/api/devoluciones-pendientes/${pid}`);
+    const devs = await r.json();
+    if (!devs.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">Sin devoluciones pendientes.</td></tr>';
+        return;
+    }
+    devs.forEach(m => {
+        const monto = (m.kg_reclamados * (m.precio_sin_iva || 0)).toFixed(2);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="text-center">
+                <input type="checkbox" class="form-check-input chk-dev"
+                       data-id="${m.id}" data-kg="${m.kg_reclamados}" data-precio="${m.precio_sin_iva}">
+            </td>
+            <td>${m.fecha}</td>
+            <td>${m.remito}</td>
+            <td>${m.tipo_tela} / ${m.color}</td>
+            <td class="text-end">${m.kg_reclamados.toFixed(2)}</td>
+            <td>
+                <input type="hidden" name="mov_id[]" value="${m.id}" class="inp-movid" disabled>
+                <input type="number" name="kg_aceptado[]" class="form-control form-control-sm text-end inp-kgac"
+                       step="0.01" min="0" value="${m.kg_reclamados}" disabled>
+            </td>
+            <td>
+                <input type="number" name="monto_aceptado[]" class="form-control form-control-sm text-end inp-monto"
+                       step="0.01" min="0" value="${monto}" disabled>
+            </td>
+            <td><input type="text" name="obs_item[]" class="form-control form-control-sm inp-obs" disabled></td>
+        `;
+        tbody.appendChild(tr);
+        bindRow(tr);
+    });
+});
+
+// Auto-calcular monto c/IVA
+function recalcMontoConIVA() {
+    const n = parseFloat(document.getElementById('monto_total').value || 0);
+    const iva = parseFloat(document.getElementById('iva').value || 0);
+    document.getElementById('monto_con_iva').value = (n + iva).toFixed(2);
+}
+document.getElementById('monto_total').addEventListener('input', recalcMontoConIVA);
+document.getElementById('iva').addEventListener('input', recalcMontoConIVA);
+</script>
+{% endblock %}
+{% endblock %}

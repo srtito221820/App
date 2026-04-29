@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Proveedores - Inventario Telas{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0">Proveedores</h4>
+    <a href="{{ url_for('proveedores.proveedor_nuevo') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> Nuevo Proveedor
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>CUIT</th>
+                    <th>Categoria</th>
+                    <th class="text-center">Plazo Pago</th>
+                    <th class="text-end">Saldo Cta. Cte.</th>
+                    <th class="text-center">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in proveedores %}
+                <tr>
+                    <td><strong>{{ p.nombre }}</strong></td>
+                    <td>{{ p.cuit or '-' }}</td>
+                    <td>{{ p.categoria or '-' }}</td>
+                    <td class="text-center">{{ p.condicion_pago_dias }} dias</td>
+                    <td class="text-end">
+                        {% set saldo = p.saldo_cuenta_corriente() %}
+                        <span class="{% if saldo > 0 %}text-danger{% elif saldo < 0 %}text-success{% endif %}">
+                            {{ saldo|currency }}
+                        </span>
+                    </td>
+                    <td class="text-center">
+                        <a href="{{ url_for('cuenta_corriente.cuenta_corriente_list', proveedor_id=p.id) }}" class="btn btn-sm btn-outline-info" title="Cuenta Corriente">
+                            <i class="bi bi-cash-stack"></i>
+                        </a>
+                        <a href="{{ url_for('cuenta_corriente.cc_analitica', proveedor_id=p.id) }}" class="btn btn-sm btn-outline-warning" title="CC Analitica (Fact/NC/Pagos)">
+                            <i class="bi bi-diagram-3"></i>
+                        </a>
+                        <a href="{{ url_for('proveedores.proveedor_editar', id=p.id) }}" class="btn btn-sm btn-outline-primary" title="Editar">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <form method="POST" action="{{ url_for('proveedores.proveedor_eliminar', id=p.id) }}" class="d-inline"
+                              onsubmit="return confirm('Desactivar proveedor {{ p.nombre }}?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Desactivar">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not proveedores %}
+                <tr><td colspan="6" class="text-center text-muted py-4">No hay proveedores cargados.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

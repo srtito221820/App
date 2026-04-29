@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+{% block title %}Nuevo Pago a Proveedor{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <h4 class="mb-0"><i class="bi bi-cash-coin"></i> Nuevo Pago a Proveedor</h4>
+    <div class="ms-auto">
+        <a href="{{ url_for('pagos.pagos_list') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+    </div>
+</div>
+
+{% if not proveedor %}
+<div class="card">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('pagos.pago_nuevo') }}">
+            <label class="form-label"><strong>Seleccioná un proveedor para listar sus facturas pendientes</strong></label>
+            <div class="input-group">
+                <select name="proveedor_id" required class="form-select">
+                    <option value="">— Seleccionar —</option>
+                    {% for p in proveedores %}
+                    <option value="{{ p.id }}">
+                        {{ p.nombre }}{% if p.cuit %} ({{ p.cuit }}){% endif %}
+                        {% if p.condicion_ganancias and p.condicion_ganancias != 'No Aplica' %} — {{ p.condicion_ganancias }}{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-primary"><i class="bi bi-arrow-right"></i> Continuar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% else %}
+
+<form method="POST" id="form-pago">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="proveedor_id" value="{{ proveedor.id }}">
+
+    <div class="card mb-3">
+        <div class="card-header">
+            <strong>{{ proveedor.nombre }}</strong>
+            {% if proveedor.cuit %}<small class="text-muted ms-2">CUIT {{ proveedor.cuit }}</small>{% endif %}
+            <span class="float-end">
+                {% if proveedor.condicion_ganancias == 'Inscripto' %}<span class="badge bg-primary">Inscripto Ganancias</span>
+                {% elif proveedor.condicion_ganancias == 'No Inscripto' %}<span class="badge bg-warning text-dark">No Inscripto Ganancias</span>
+                {% elif proveedor.condicion_ganancias == 'Exento' %}<span class="badge bg-info">Exento</span>
+                {% else %}<span class="badge bg-secondary">No Aplica Retencion</span>{% endif %}
+            </span>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Fecha del Pago</label>
+                    <input type="date" name="fecha" value="{{ fecha_default }}" required class="form-control" id="fecha">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Agente de Retencion</label>
+                    <select name="agente_codigo" class="form-select" id="agente_codigo">
+                        {% for a in agentes %}
+                        <option value="{{ a.codigo }}">{{ a.razon_social }} ({{ a.cuit }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Cuenta</label>
+                    <select name="cuenta" class="form-select">
+                        <option value="">—</option>
+                        <option value="JUMAF">JUMAF</option>
+                        <option value="JUMASA">JUMASA</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Medio de Pago</label>
+                    <select name="medio_pago" class="form-select">
+                        <option value="">—</option>
+                        <option value="Transferencia">Transferencia</option>
+                        <option value="Cheque">Cheque</option>
+                        <option value="ECheq">ECheq</option>
+                        <option value="Efectivo">Efectivo</option>
+                        <option value="Deposito">Deposito</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Referencia (nro cheque / CBU / etc.)</label>
+                    <input type="text" name="referencia" class="form-control">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Observaciones</label>
+                    <input type="text" name="observaciones" class="form-control">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header d-flex align-items-center">
+            <strong>Comprobantes Pendientes</strong>
+            <small class="text-muted ms-2">Seleccioná facturas, notas de débito y notas de crédito a aplicar. Las NC se restan del bruto.</small>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="tabla-facturas">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:40px;"><input type="checkbox" id="chk-todas"></th>
+                        <th>Fecha</th>
+                        <th>Tipo</th>
+                        <th>Nro</th>
+                        <th>Descripcion</th>
+                        <th class="text-end">Total</th>
+                        <th class="text-end">Saldo</th>
+                        <th class="text-end" style="width:180px;">Aplicar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for f in facturas_pendientes %}
+                    {% set es_credito = f.es_credito() %}
+                    {% set total_comp = (f.haber if es_credito else f.debe) or 0 %}
+                    <tr class="{% if es_credito %}table-success{% endif %}">
+                        <td>
+                            <input type="checkbox" name="factura_ids[]" value="{{ f.id }}" class="chk-factura"
+                                   data-saldo="{{ f.saldo_pendiente() }}"
+                                   data-credito="{{ '1' if es_credito else '0' }}">
+                        </td>
+                        <td>{{ f.fecha.strftime('%d/%m/%Y') }}</td>
+                        <td>
+                            {% if es_credito %}
+                                <span class="badge bg-success">NC</span>
+                            {% elif f.tipo == 'Nota de Debito' %}
+                                <span class="badge bg-warning text-dark">ND</span>
+                            {% else %}
+                                <small>{{ f.tipo }}</small>
+                            {% endif %}
+                        </td>
+                        <td><strong>{{ f.numero_comprobante or '-' }}</strong></td>
+                        <td><small>{{ (f.descripcion or '')[:50] }}</small></td>
+                        <td class="text-end">
+                            {% if es_credito %}<span class="text-success">- {{ total_comp | currency }}</span>
+                            {% else %}{{ total_comp | currency }}{% endif %}
+                        </td>
+                        <td class="text-end">
+                            <strong class="{% if es_credito %}text-success{% endif %}">
+                                {% if es_credito %}- {% endif %}{{ f.saldo_pendiente() | currency }}
+                            </strong>
+                        </td>
+                        <td class="text-end">
+                            <input type="number" step="0.01" min="0" name="monto_{{ f.id }}" value="{{ '%.2f'|format(f.saldo_pendiente()) }}" class="form-control form-control-sm text-end monto-factura" disabled>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="8" class="text-center text-muted py-3">Este proveedor no tiene comprobantes pendientes.</td></tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <td colspan="6" class="text-end"><strong>Total Bruto a Pagar</strong></td>
+                        <td colspan="2" class="text-end"><strong id="total-bruto">$0.00</strong></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header d-flex align-items-center">
+            <strong>Retencion Ganancias (RG 830)</strong>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <div class="form-check form-switch pt-2">
+                        <input class="form-check-input" type="checkbox" id="aplicar_retencion" name="aplicar_retencion"
+                            {% if proveedor.condicion_ganancias in ('Inscripto', 'No Inscripto') %}checked{% endif %}>
+                        <label class="form-check-label" for="aplicar_retencion">Aplicar retencion</label>
+                    </div>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label">Concepto</label>
+                    <select name="concepto_retencion_id" id="concepto_retencion_id" class="form-select">
+                        <option value="">— Usar el concepto asignado al proveedor —</option>
+                        {% for c in conceptos %}
+                        <option value="{{ c.id }}" {% if proveedor.concepto_retencion_id == c.id %}selected{% endif %}>
+                            {{ c.codigo }} — {{ c.concepto }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <div class="alert alert-info mb-0 py-2" id="preview-box">
+                        <small>Seleccioná facturas para previsualizar la retencion.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row text-center">
+                <div class="col-md-4">
+                    <small class="text-muted">Bruto</small>
+                    <h4 class="mb-0" id="resumen-bruto">$0.00</h4>
+                </div>
+                <div class="col-md-4">
+                    <small class="text-muted">Retencion</small>
+                    <h4 class="mb-0 text-danger" id="resumen-retencion">$0.00</h4>
+                </div>
+                <div class="col-md-4">
+                    <small class="text-muted">Neto a Entregar</small>
+                    <h4 class="mb-0 text-success" id="resumen-neto">$0.00</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-end">
+        <a href="{{ url_for('pagos.pagos_list') }}" class="btn btn-outline-secondary me-2">Cancelar</a>
+        <button type="submit" class="btn btn-success"><i class="bi bi-check-lg"></i> Confirmar Pago</button>
+    </div>
+</form>
+
+<script>
+(function() {
+    const chkTodas = document.getElementById('chk-todas');
+    const chkFacturas = document.querySelectorAll('.chk-factura');
+    const montosInputs = document.querySelectorAll('.monto-factura');
+    const aplicarRet = document.getElementById('aplicar_retencion');
+    const conceptoSel = document.getElementById('concepto_retencion_id');
+    const fechaInp = document.getElementById('fecha');
+    const previewBox = document.getElementById('preview-box');
+    const resBruto = document.getElementById('resumen-bruto');
+    const resRet = document.getElementById('resumen-retencion');
+    const resNeto = document.getElementById('resumen-neto');
+    const totBrutoTr = document.getElementById('total-bruto');
+
+    function fmt(n) {
+        return '$' + (n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function toggleRow(chk) {
+        const tr = chk.closest('tr');
+        const inp = tr.querySelector('.monto-factura');
+        inp.disabled = !chk.checked;
+        if (!chk.checked) inp.value = '';
+        else if (!inp.value || parseFloat(inp.value) <= 0) {
+            inp.value = parseFloat(chk.dataset.saldo).toFixed(2);
+        }
+    }
+
+    function recolectarAplicaciones() {
+        const aplicaciones = [];
+        let total = 0;
+        chkFacturas.forEach(chk => {
+            if (chk.checked) {
+                const inp = chk.closest('tr').querySelector('.monto-factura');
+                const monto = parseFloat(inp.value || 0) || 0;
+                if (monto > 0) {
+                    const esCredito = chk.dataset.credito === '1';
+                    const signo = esCredito ? -1 : 1;
+                    aplicaciones.push({
+                        factura_id: parseInt(chk.value, 10),
+                        monto: monto,
+                        es_credito: esCredito,
+                    });
+                    total += signo * monto;
+                }
+            }
+        });
+        return { aplicaciones, total };
+    }
+
+    let timer = null;
+    function actualizar() {
+        const { aplicaciones, total: bruto } = recolectarAplicaciones();
+        totBrutoTr.textContent = fmt(bruto);
+        resBruto.textContent = fmt(bruto);
+
+        if (bruto <= 0 || !aplicarRet.checked) {
+            resRet.textContent = fmt(0);
+            resNeto.textContent = fmt(bruto);
+            let msg;
+            if (!aplicarRet.checked) {
+                msg = 'Retencion desactivada.';
+            } else if (bruto < 0) {
+                msg = 'Las NC superan a las facturas. No se calcula retencion.';
+            } else {
+                msg = 'Seleccioná comprobantes para previsualizar la retencion.';
+            }
+            previewBox.innerHTML = '<small>' + msg + '</small>';
+            return;
+        }
+
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+            const payload = {
+                proveedor_id: {{ proveedor.id }},
+                aplicaciones: aplicaciones,
+                fecha: fechaInp.value,
+                concepto_id: conceptoSel.value || null,
+            };
+            fetch("{{ url_for('impuestos.api_retenciones_calcular') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                },
+                body: JSON.stringify(payload),
+            }).then(r => r.json()).then(data => {
+                if (data.error || data.aplica === false) {
+                    previewBox.className = 'alert alert-warning mb-0 py-2';
+                    previewBox.innerHTML = '<small>' + (data.motivo || data.error || 'No aplica retencion') + '</small>';
+                    resRet.textContent = fmt(0);
+                    resNeto.textContent = fmt(bruto);
+                    return;
+                }
+                const ret = data.retencion || 0;
+                previewBox.className = 'alert alert-info mb-0 py-2';
+                previewBox.innerHTML =
+                    '<small><strong>' + (data.concepto_codigo || '') + '</strong> — ' + (data.alicuota_aplicada || '') + '<br>'
+                    + 'Base acum: ' + fmt(data.base_acumulada) + ' | MNI: ' + fmt(data.mni) + '<br>'
+                    + 'Retencion: <strong>' + fmt(ret) + '</strong></small>';
+                resRet.textContent = fmt(ret);
+                resNeto.textContent = fmt(bruto - ret);
+            }).catch(e => {
+                previewBox.className = 'alert alert-danger mb-0 py-2';
+                previewBox.innerHTML = '<small>Error calculando retencion.</small>';
+            });
+        }, 300);
+    }
+
+    chkTodas.addEventListener('change', () => {
+        chkFacturas.forEach(c => { c.checked = chkTodas.checked; toggleRow(c); });
+        actualizar();
+    });
+    chkFacturas.forEach(c => c.addEventListener('change', () => { toggleRow(c); actualizar(); }));
+    montosInputs.forEach(i => i.addEventListener('input', actualizar));
+    aplicarRet.addEventListener('change', actualizar);
+    conceptoSel.addEventListener('change', actualizar);
+    fechaInp.addEventListener('change', actualizar);
+
+    actualizar();
+})();
+</script>
+{% endif %}
+{% endblock %}
