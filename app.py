@@ -52,7 +52,17 @@ if not _SECRET_KEY or _SECRET_KEY.strip() in ('', 'cambiar-por-un-valor-aleatori
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = _SECRET_KEY
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
+
+# Usar DATABASE_URL (MySQL/PostgreSQL) si existe; de lo contrario, caer a SQLite
+_db_url = os.getenv('DATABASE_URL')
+if _db_url:
+    # A veces platforms como Heroku envían postgres:// en vez de postgresql://
+    if _db_url.startswith('postgres://'):
+        _db_url = _db_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['WTF_CSRF_TIME_LIMIT'] = None
 
