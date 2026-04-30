@@ -165,52 +165,59 @@ def exportar_consumos():
 
 @bp.route('/nuevo', methods=['GET', 'POST'])
 def consumo_nuevo():
+    partida_id_pre = (request.args.get('partida_id', type=int)
+                      or request.form.get('partida_id', type=int))
+    partida_pre = (Partida.query.filter_by(id=partida_id_pre, activo=True).first()
+                   if partida_id_pre else None)
+
+    if not partida_pre:
+        flash('El consumo debe registrarse sobre una partida existente. '
+              'Elegí una partida desde el listado.', 'warning')
+        return redirect(url_for('consumos.consumos_list'))
+
+    ingreso = MovimientoTela.query.filter_by(
+        partida_id=partida_pre.id, movimiento='Ingreso'
+    ).order_by(MovimientoTela.fecha.asc(), MovimientoTela.id.asc()).first()
+    cuenta_pre = ingreso.cuenta if ingreso else None
+
     if request.method == 'POST':
         try:
-            proveedor_id = request.form.get('proveedor_id', type=int)
-            maestro_tela_id = request.form.get('maestro_tela_id', type=int) or None
-            partida_id = request.form.get('partida_id', type=int) or None
             cant_kg = request.form.get('cant_kg', type=float) or 0
             piezas = request.form.get('piezas', type=int) or 0
-            cuenta = request.form.get('cuenta', '').strip() or None
+            cuenta = request.form.get('cuenta', '').strip() or cuenta_pre or None
             op = request.form.get('op', '').strip() or None
             fecha_str = request.form.get('fecha') or date.today().isoformat()
             obs = request.form.get('observaciones', '').strip() or None
 
-            if not proveedor_id or cant_kg <= 0:
-                flash('Proveedor y cantidad (kg) > 0 son obligatorios.', 'danger')
+            if cant_kg <= 0:
+                flash('La cantidad (kg) debe ser mayor a 0.', 'danger')
                 raise ValueError('Datos invalidos')
 
-            tela = db.session.get(MaestroTela, maestro_tela_id) if maestro_tela_id else None
-            part = db.session.get(Partida, partida_id) if partida_id else None
-
-            if part:
-                if (part.piezas_totales or 0) > 0 and piezas > part.piezas_saldo():
-                    flash(f'No se puede consumir {piezas} piezas: la partida {part.numero} '
-                          f'tiene saldo de {part.piezas_saldo()} piezas.', 'danger')
-                    raise ValueError('Piezas exceden saldo')
-                if (part.kg_totales or 0) > 0 and cant_kg > part.kg_saldo() + 0.001:
-                    flash(f'No se puede consumir {cant_kg:.2f} kg: la partida {part.numero} '
-                          f'tiene saldo de {part.kg_saldo():.2f} kg.', 'danger')
-                    raise ValueError('Kg exceden saldo')
+            if (partida_pre.piezas_totales or 0) > 0 and piezas > partida_pre.piezas_saldo():
+                flash(f'No se puede consumir {piezas} piezas: la partida {partida_pre.numero} '
+                      f'tiene saldo de {partida_pre.piezas_saldo()} piezas.', 'danger')
+                raise ValueError('Piezas exceden saldo')
+            kg_saldo = float(partida_pre.kg_saldo() or 0)
+            if (partida_pre.kg_totales or 0) > 0 and cant_kg > kg_saldo + 0.001:
+                flash(f'No se puede consumir {cant_kg:.2f} kg: la partida {partida_pre.numero} '
+                      f'tiene saldo de {kg_saldo:.2f} kg.', 'danger')
+                raise ValueError('Kg exceden saldo')
 
             m = MovimientoTela(
                 fecha=_dt.strptime(fecha_str, '%Y-%m-%d').date(),
-                proveedor_id=proveedor_id,
+                proveedor_id=partida_pre.proveedor_id,
                 cuenta=cuenta,
-                tipo_tela=(tela.tipo_tela if tela else (part.tipo_tela if part else '')),
-                color=(tela.color if tela else (part.color if part else '')),
-                cod_art=(tela.cod_art if tela else (part.cod_art if part else None)),
-                cod_color=(tela.cod_color if tela else (part.cod_color if part else None)),
-                descripcion=(tela.descripcion if tela else None),
+                tipo_tela=partida_pre.tipo_tela or '',
+                color=partida_pre.color or '',
+                cod_art=partida_pre.cod_art,
+                cod_color=partida_pre.cod_color,
                 cant_kg=-abs(cant_kg),
                 piezas=-abs(piezas),
                 movimiento='Consumo',
                 estado='Consumido',
                 op=op,
                 observaciones=obs,
-                maestro_tela_id=maestro_tela_id,
-                partida_id=partida_id,
+                partida_id=partida_pre.id,
             )
             db.session.add(m)
             db.session.flush()
@@ -225,14 +232,8 @@ def consumo_nuevo():
             db.session.rollback()
             flash(f'Error: {e}', 'danger')
 
-    proveedores = Proveedor.query.filter_by(activo=True).order_by(Proveedor.nombre).all()
-    partida_pre = None
-    partida_id_pre = (request.args.get('partida_id', type=int)
-                      or request.form.get('partida_id', type=int))
-    if partida_id_pre:
-        partida_pre = Partida.query.filter_by(id=partida_id_pre, activo=True).first()
     return render_template('consumos/form.html', consumo=None,
-                           proveedores=proveedores, partida_pre=partida_pre)
+                           partida_pre=partida_pre, cuenta_pre=cuenta_pre)
 
 
 @bp.route('/<int:id>/eliminar', methods=['POST'])

@@ -26,15 +26,15 @@
     <div class="col-md-4">
         <div class="card stat-card green">
             <div class="card-body py-2">
-                <div class="text-muted small">Sin Morley/RIBB (Kg)</div>
-                <div class="h5 mb-0">{{ total_kg_sin_morley_ribb|number }}</div>
+                <div class="text-muted small">Morley/RIBB (Kg)</div>
+                <div class="h5 mb-0">{{ total_kg_morley_ribb|number }}</div>
             </div>
         </div>
     </div>
     <div class="col-md-4">
         <div class="card stat-card orange">
             <div class="card-body py-2">
-                <div class="text-muted small">Piezas (sin Morley/RIBB)</div>
+                <div class="text-muted small">Piezas tela</div>
                 <div class="h5 mb-0">{{ total_piezas }}</div>
             </div>
         </div>
@@ -93,20 +93,6 @@
                             </select>
                         </form>
                     </th>
-                    <th style="min-width:140px">
-                        <form method="GET" class="mb-0">
-                            {% if proveedor_id %}<input type="hidden" name="proveedor_id" value="{{ proveedor_id }}">{% endif %}
-                            {% if tipo_tela_sel %}<input type="hidden" name="tipo_tela" value="{{ tipo_tela_sel }}">{% endif %}
-                            {% if cod_art_sel %}<input type="hidden" name="cod_art" value="{{ cod_art_sel }}">{% endif %}
-                            {% if cod_color_sel %}<input type="hidden" name="cod_color" value="{{ cod_color_sel }}">{% endif %}
-                            <select name="color" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
-                                <option value="">COLOR ▾</option>
-                                {% for c in colores %}
-                                <option value="{{ c }}" {% if color_sel == c %}selected{% endif %}>{{ c }}</option>
-                                {% endfor %}
-                            </select>
-                        </form>
-                    </th>
                     <th style="min-width:120px">
                         <form method="GET" class="mb-0">
                             {% if proveedor_id %}<input type="hidden" name="proveedor_id" value="{{ proveedor_id }}">{% endif %}
@@ -117,6 +103,20 @@
                                 <option value="">COD ART ▾</option>
                                 {% for c in cod_arts %}
                                 <option value="{{ c }}" {% if cod_art_sel == c %}selected{% endif %}>{{ c }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </th>
+                    <th style="min-width:140px">
+                        <form method="GET" class="mb-0">
+                            {% if proveedor_id %}<input type="hidden" name="proveedor_id" value="{{ proveedor_id }}">{% endif %}
+                            {% if tipo_tela_sel %}<input type="hidden" name="tipo_tela" value="{{ tipo_tela_sel }}">{% endif %}
+                            {% if cod_art_sel %}<input type="hidden" name="cod_art" value="{{ cod_art_sel }}">{% endif %}
+                            {% if cod_color_sel %}<input type="hidden" name="cod_color" value="{{ cod_color_sel }}">{% endif %}
+                            <select name="color" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+                                <option value="">COLOR ▾</option>
+                                {% for c in colores %}
+                                <option value="{{ c }}" {% if color_sel == c %}selected{% endif %}>{{ c }}</option>
                                 {% endfor %}
                             </select>
                         </form>
@@ -163,8 +163,8 @@
                     data-codart="{{ item.cod_art or '' }}" data-codcolor="{{ item.cod_color or '' }}"
                     data-provid="{{ item.proveedor_id }}">
                     <td><strong>{{ item.tipo_tela }}</strong></td>
-                    <td>{{ item.color }}</td>
                     <td>{{ item.cod_art or '-' }}</td>
+                    <td>{{ item.color }}</td>
                     <td>{{ item.cod_color or '-' }}</td>
                     <td>{{ item.proveedor_nombre }}</td>
                     <td class="text-end {% if item.total_kg and item.total_kg < 0 %}text-danger{% endif %}">

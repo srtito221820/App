@@ -1,0 +1,461 @@
+﻿diff --git a/blueprints/consumos.py b/blueprints/consumos.py
+index 0a9408f..dcc4cfc 100644
+--- a/blueprints/consumos.py
++++ b/blueprints/consumos.py
+@@ -165,52 +165,59 @@ def exportar_consumos():
+ 
+ @bp.route('/nuevo', methods=['GET', 'POST'])
+ def consumo_nuevo():
++    partida_id_pre = (request.args.get('partida_id', type=int)
++                      or request.form.get('partida_id', type=int))
++    partida_pre = (Partida.query.filter_by(id=partida_id_pre, activo=True).first()
++                   if partida_id_pre else None)
++
++    if not partida_pre:
++        flash('El consumo debe registrarse sobre una partida existente. '
++              'Eleg├¡ una partida desde el listado.', 'warning')
++        return redirect(url_for('consumos.consumos_list'))
++
++    ingreso = MovimientoTela.query.filter_by(
++        partida_id=partida_pre.id, movimiento='Ingreso'
++    ).order_by(MovimientoTela.fecha.asc(), MovimientoTela.id.asc()).first()
++    cuenta_pre = ingreso.cuenta if ingreso else None
++
+     if request.method == 'POST':
+         try:
+-            proveedor_id = request.form.get('proveedor_id', type=int)
+-            maestro_tela_id = request.form.get('maestro_tela_id', type=int) or None
+-            partida_id = request.form.get('partida_id', type=int) or None
+             cant_kg = request.form.get('cant_kg', type=float) or 0
+             piezas = request.form.get('piezas', type=int) or 0
+-            cuenta = request.form.get('cuenta', '').strip() or None
++            cuenta = request.form.get('cuenta', '').strip() or cuenta_pre or None
+             op = request.form.get('op', '').strip() or None
+             fecha_str = request.form.get('fecha') or date.today().isoformat()
+             obs = request.form.get('observaciones', '').strip() or None
+ 
+-            if not proveedor_id or cant_kg <= 0:
+-                flash('Proveedor y cantidad (kg) > 0 son obligatorios.', 'danger')
++            if cant_kg <= 0:
++                flash('La cantidad (kg) debe ser mayor a 0.', 'danger')
+                 raise ValueError('Datos invalidos')
+ 
+-            tela = db.session.get(MaestroTela, maestro_tela_id) if maestro_tela_id else None
+-            part = db.session.get(Partida, partida_id) if partida_id else None
+-
+-            if part:
+-                if (part.piezas_totales or 0) > 0 and piezas > part.piezas_saldo():
+-                    flash(f'No se puede consumir {piezas} piezas: la partida {part.numero} '
+-                          f'tiene saldo de {part.piezas_saldo()} piezas.', 'danger')
+-                    raise ValueError('Piezas exceden saldo')
+-                if (part.kg_totales or 0) > 0 and cant_kg > part.kg_saldo() + 0.001:
+-                    flash(f'No se puede consumir {cant_kg:.2f} kg: la partida {part.numero} '
+-                          f'tiene saldo de {part.kg_saldo():.2f} kg.', 'danger')
+-                    raise ValueError('Kg exceden saldo')
++            if (partida_pre.piezas_totales or 0) > 0 and piezas > partida_pre.piezas_saldo():
++                flash(f'No se puede consumir {piezas} piezas: la partida {partida_pre.numero} '
++                      f'tiene saldo de {partida_pre.piezas_saldo()} piezas.', 'danger')
++                raise ValueError('Piezas exceden saldo')
++            kg_saldo = float(partida_pre.kg_saldo() or 0)
++            if (partida_pre.kg_totales or 0) > 0 and cant_kg > kg_saldo + 0.001:
++                flash(f'No se puede consumir {cant_kg:.2f} kg: la partida {partida_pre.numero} '
++                      f'tiene saldo de {kg_saldo:.2f} kg.', 'danger')
++                raise ValueError('Kg exceden saldo')
+ 
+             m = MovimientoTela(
+                 fecha=_dt.strptime(fecha_str, '%Y-%m-%d').date(),
+-                proveedor_id=proveedor_id,
++                proveedor_id=partida_pre.proveedor_id,
+                 cuenta=cuenta,
+-                tipo_tela=(tela.tipo_tela if tela else (part.tipo_tela if part else '')),
+-                color=(tela.color if tela else (part.color if part else '')),
+-                cod_art=(tela.cod_art if tela else (part.cod_art if part else None)),
+-                cod_color=(tela.cod_color if tela else (part.cod_color if part else None)),
+-                descripcion=(tela.descripcion if tela else None),
++                tipo_tela=partida_pre.tipo_tela or '',
++                color=partida_pre.color or '',
++                cod_art=partida_pre.cod_art,
++                cod_color=partida_pre.cod_color,
+                 cant_kg=-abs(cant_kg),
+                 piezas=-abs(piezas),
+                 movimiento='Consumo',
+                 estado='Consumido',
+                 op=op,
+                 observaciones=obs,
+-                maestro_tela_id=maestro_tela_id,
+-                partida_id=partida_id,
++                partida_id=partida_pre.id,
+             )
+             db.session.add(m)
+             db.session.flush()
+@@ -225,14 +232,8 @@ def consumo_nuevo():
+             db.session.rollback()
+             flash(f'Error: {e}', 'danger')
+ 
+-    proveedores = Proveedor.query.filter_by(activo=True).order_by(Proveedor.nombre).all()
+-    partida_pre = None
+-    partida_id_pre = (request.args.get('partida_id', type=int)
+-                      or request.form.get('partida_id', type=int))
+-    if partida_id_pre:
+-        partida_pre = Partida.query.filter_by(id=partida_id_pre, activo=True).first()
+     return render_template('consumos/form.html', consumo=None,
+-                           proveedores=proveedores, partida_pre=partida_pre)
++                           partida_pre=partida_pre, cuenta_pre=cuenta_pre)
+ 
+ 
+ @bp.route('/<int:id>/eliminar', methods=['POST'])
+diff --git a/blueprints/maestro.py b/blueprints/maestro.py
+index ff1e6e5..07db992 100644
+--- a/blueprints/maestro.py
++++ b/blueprints/maestro.py
+@@ -1,6 +1,6 @@
+ from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+ 
+-from models import db, Proveedor, MaestroTela, Partida
++from models import db, Proveedor, MaestroTela, Partida, MovimientoTela
+ from utils import registrar_auditoria
+ 
+ bp = Blueprint('maestro', __name__)
+@@ -130,6 +130,18 @@ def api_maestro_detalle(id):
+ def api_partidas_por_proveedor(proveedor_id):
+     partidas = Partida.query.filter_by(proveedor_id=proveedor_id, activo=True) \
+                             .order_by(Partida.fecha_alta.desc(), Partida.numero).all()
++    ids = [p.id for p in partidas]
++    cuenta_por_partida = {}
++    if ids:
++        rows = db.session.query(
++            MovimientoTela.partida_id, MovimientoTela.cuenta
++        ).filter(
++            MovimientoTela.partida_id.in_(ids),
++            MovimientoTela.movimiento == 'Ingreso',
++        ).order_by(MovimientoTela.fecha.asc(), MovimientoTela.id.asc()).all()
++        for pid, cuenta in rows:
++            if pid not in cuenta_por_partida and cuenta:
++                cuenta_por_partida[pid] = cuenta
+     return jsonify([{
+         'id': p.id,
+         'numero': p.numero,
+@@ -140,5 +152,6 @@ def api_partidas_por_proveedor(proveedor_id):
+         'piezas_saldo': p.piezas_saldo(),
+         'kg_totales': p.kg_totales or 0,
+         'kg_saldo': p.kg_saldo(),
++        'cuenta': cuenta_por_partida.get(p.id, ''),
+         'label': f"{p.numero} ÔÇö {p.tipo_tela}/{p.color}",
+     } for p in partidas])
+diff --git a/blueprints/panel.py b/blueprints/panel.py
+index 551951a..9fdd957 100644
+--- a/blueprints/panel.py
++++ b/blueprints/panel.py
+@@ -200,6 +200,9 @@ def panel_operacion():
+         if monto < 0:
+             flash('El monto no puede ser negativo.', 'danger')
+             return redirect(url_for('panel.panel', proveedor_id=proveedor_id, vista='resumen'))
++        if tipo_op == 'factura_anticipo' and parse_money(request.form.get('neto')) < 0:
++            flash('El neto no puede ser negativo.', 'danger')
++            return redirect(url_for('panel.panel', proveedor_id=proveedor_id, vista='resumen'))
+         for i, ck in enumerate(cant_kgs):
+             if parse_kg(ck) < 0:
+                 flash(f'Los Kg no pueden ser negativos (linea {i+1}).', 'danger')
+@@ -534,11 +537,34 @@ def panel_anticipo_editar(id):
+         a.numero = request.form['numero']
+         a.fecha = date.fromisoformat(request.form['fecha'])
+         a.numero_factura = request.form.get('numero_factura', '')
+-        a.monto = parse_money(request.form.get('monto'))
++        # El bruto se recalcula desde neto + IVA% para mantener coherencia.
++        # Si el form no manda neto (compatibilidad con flujos viejos), usa el monto crudo.
++        neto_raw = request.form.get('neto')
++        if neto_raw is not None and neto_raw != '':
++            neto = parse_money(neto_raw)
++            iva_alic = D(request.form.get('iva_alicuota') or '21')
++            a.neto = neto
++            a.iva_alicuota = iva_alic
++            a.monto = q2(neto * (D(1) + iva_alic / D(100)))
++        else:
++            a.monto = parse_money(request.form.get('monto'))
+         a.cant_kg = parse_kg(request.form.get('cant_kg'))
+         a.descripcion = request.form.get('descripcion', '')
+         a.estado = request.form.get('estado', 'Abierto')
+-        registrar_auditoria('Editar', 'Anticipo', a.id, f'Anticipo {a.numero} ${a.monto}')
++
++        # Mantener sincronizado el asiento en Cta. Cte. (Factura) cuando existe.
++        if a.numero_factura:
++            cc_factura = CuentaCorriente.query.filter_by(
++                proveedor_id=a.proveedor_id,
++                tipo='Factura',
++                numero_comprobante=a.numero_factura,
++            ).first()
++            if cc_factura:
++                cc_factura.debe = a.monto
++                cc_factura.fecha = a.fecha
++
++        registrar_auditoria('Editar', 'Anticipo', a.id,
++                            f'Anticipo {a.numero} neto ${a.neto} ({a.iva_alicuota}% IVA) bruto ${a.monto}')
+         db.session.commit()
+         flash(f'Anticipo "{a.numero}" actualizado.', 'success')
+         return redirect(url_for('panel.panel', proveedor_id=a.proveedor_id, vista='anticipos'))
+diff --git a/blueprints/stock.py b/blueprints/stock.py
+index 1e7673f..5ad3bfc 100644
+--- a/blueprints/stock.py
++++ b/blueprints/stock.py
+@@ -54,12 +54,12 @@ def stock():
+     if cuenta_sel:
+         query = query.filter(MovimientoTela.cuenta == cuenta_sel)
+ 
+-    stock_items = query.order_by(MovimientoTela.tipo_tela, MovimientoTela.color).all()
++    stock_items = query.order_by(MovimientoTela.tipo_tela, MovimientoTela.cod_art, MovimientoTela.color).all()
+ 
+     total_kg = sum((it.total_kg or 0) for it in stock_items)
+-    total_kg_sin_morley_ribb = sum(
++    total_kg_morley_ribb = sum(
+         (it.total_kg or 0) for it in stock_items
+-        if (it.tipo_tela or '').upper() not in TELAS_SIN_PIEZAS
++        if (it.tipo_tela or '').upper() in TELAS_SIN_PIEZAS
+     )
+     total_piezas = sum(
+         (it.total_piezas or 0) for it in stock_items
+@@ -80,7 +80,7 @@ def stock():
+                            cod_color_sel=cod_color,
+                            cuenta_sel=cuenta_sel,
+                            total_kg=total_kg,
+-                           total_kg_sin_morley_ribb=total_kg_sin_morley_ribb,
++                           total_kg_morley_ribb=total_kg_morley_ribb,
+                            total_piezas=total_piezas,
+                            telas_sin_piezas=TELAS_SIN_PIEZAS)
+ 
+diff --git a/templates/consumos/form.html b/templates/consumos/form.html
+index 497ba3a..e811530 100644
+--- a/templates/consumos/form.html
++++ b/templates/consumos/form.html
+@@ -7,8 +7,7 @@
+     <h4 class="mb-0"><i class="bi bi-scissors"></i> Registrar Consumo</h4>
+ </div>
+ 
+-{% if partida_pre %}
+-<div class="alert alert-info d-flex justify-content-between align-items-center">
++<div class="alert alert-info">
+     <div>
+         <i class="bi bi-boxes"></i>
+         Consumiendo de la partida
+@@ -19,18 +18,12 @@
+             / <strong>{{ partida_pre.kg_saldo()|number }}</strong> kg
+         </span>
+     </div>
+-    <a href="{{ url_for('consumos.consumo_nuevo') }}" class="btn btn-sm btn-outline-secondary">
+-        <i class="bi bi-x"></i> Modo carga manual
+-    </a>
+ </div>
+-{% endif %}
+ 
+ <div class="card">
+     <div class="card-body">
+         <form method="POST">
+             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+-            {% if partida_pre %}
+-            {# Modo simplificado: proveedor/tela/partida preseleccionados y ocultos #}
+             <input type="hidden" name="proveedor_id" value="{{ partida_pre.proveedor_id }}">
+             <input type="hidden" name="partida_id" value="{{ partida_pre.id }}">
+ 
+@@ -61,81 +54,23 @@
+                 <div class="col-md-4 mb-3">
+                     <label class="form-label">Cuenta</label>
+                     <select name="cuenta" class="form-select">
+-                        <option value="">ÔÇö</option>
+-                        <option value="JUMAF">JUMAF</option>
+-                        <option value="JUMASA">JUMASA</option>
+-                    </select>
+-                </div>
+-                <div class="col-md-4 mb-3">
+-                    <label class="form-label">OP / Corte</label>
+-                    <input type="text" name="op" class="form-control" placeholder="Ej: OP-1234">
+-                </div>
+-                <div class="col-md-12 mb-3">
+-                    <label class="form-label">Observaciones</label>
+-                    <textarea name="observaciones" class="form-control" rows="2"></textarea>
+-                </div>
+-            </div>
+-
+-            {% else %}
+-            {# Modo manual (sin preseleccion) #}
+-            <div class="row">
+-                <div class="col-md-3 mb-3">
+-                    <label class="form-label">Fecha *</label>
+-                    <input type="date" name="fecha" class="form-control" required
+-                           value="{{ today_iso or '' }}">
+-                </div>
+-                <div class="col-md-5 mb-3">
+-                    <label class="form-label">Proveedor *</label>
+-                    <select name="proveedor_id" id="proveedor_id" class="form-select" required>
+-                        <option value="">Seleccionar...</option>
+-                        {% for p in proveedores %}
+-                        <option value="{{ p.id }}">{{ p.nombre }}</option>
+-                        {% endfor %}
++                        <option value="" {% if not cuenta_pre %}selected{% endif %}>ÔÇö</option>
++                        <option value="JUMAF" {% if cuenta_pre == 'JUMAF' %}selected{% endif %}>JUMAF</option>
++                        <option value="JUMASA" {% if cuenta_pre == 'JUMASA' %}selected{% endif %}>JUMASA</option>
+                     </select>
++                    {% if cuenta_pre %}
++                    <div class="form-text">Tomada del ingreso de la partida.</div>
++                    {% endif %}
+                 </div>
+                 <div class="col-md-4 mb-3">
+-                    <label class="form-label">Cuenta</label>
+-                    <select name="cuenta" class="form-select">
+-                        <option value="">ÔÇö</option>
+-                        <option value="JUMAF">JUMAF</option>
+-                        <option value="JUMASA">JUMASA</option>
+-                    </select>
+-                </div>
+-
+-                <div class="col-md-6 mb-3">
+-                    <label class="form-label">Tela (Maestro)</label>
+-                    <select id="maestro_tela_id" name="maestro_tela_id" class="form-select">
+-                        <option value="">ÔÇö Seleccione proveedor primero ÔÇö</option>
+-                    </select>
+-                </div>
+-
+-                <div class="col-md-6 mb-3">
+-                    <label class="form-label">Partida</label>
+-                    <select id="partida_id" name="partida_id" class="form-select">
+-                        <option value="">ÔÇö Seleccione proveedor primero ÔÇö</option>
+-                    </select>
+-                    <div class="form-text">Tipica opcion: descargar contra la partida de la que proviene la tela.</div>
+-                </div>
+-
+-                <div class="col-md-3 mb-3">
+-                    <label class="form-label">Kg consumidos *</label>
+-                    <input type="number" name="cant_kg" class="form-control" step="0.01" min="0.01" required>
+-                </div>
+-                <div class="col-md-3 mb-3">
+-                    <label class="form-label">Piezas</label>
+-                    <input type="number" name="piezas" class="form-control" min="0" value="0">
+-                </div>
+-                <div class="col-md-3 mb-3">
+                     <label class="form-label">OP / Corte</label>
+                     <input type="text" name="op" class="form-control" placeholder="Ej: OP-1234">
+                 </div>
+-
+                 <div class="col-md-12 mb-3">
+                     <label class="form-label">Observaciones</label>
+                     <textarea name="observaciones" class="form-control" rows="2"></textarea>
+                 </div>
+             </div>
+-            {% endif %}
+ 
+             <hr>
+             <button class="btn btn-danger"><i class="bi bi-scissors"></i> Descontar Stock</button>
+@@ -146,39 +81,10 @@
+ 
+ {% block scripts %}
+ <script>
+-// Setear fecha por defecto
+ document.addEventListener('DOMContentLoaded', () => {
+     const inp = document.querySelector('input[name=fecha]');
+     if (inp && !inp.value) inp.value = new Date().toISOString().slice(0, 10);
+ });
+-
+-{% if not partida_pre %}
+-document.getElementById('proveedor_id').addEventListener('change', async function() {
+-    const pid = this.value;
+-    const selTela = document.getElementById('maestro_tela_id');
+-    const selPart = document.getElementById('partida_id');
+-    selTela.innerHTML = '<option value="">ÔÇö Carga manual ÔÇö</option>';
+-    selPart.innerHTML = '<option value="">ÔÇö Sin partida ÔÇö</option>';
+-    if (!pid) return;
+-    const [rt, rp] = await Promise.all([
+-        fetch(`/api/maestro/por-proveedor/${pid}`),
+-        fetch(`/api/partidas/por-proveedor/${pid}`),
+-    ]);
+-    const telas = await rt.json();
+-    telas.forEach(t => {
+-        const o = document.createElement('option');
+-        o.value = t.id; o.textContent = t.label;
+-        selTela.appendChild(o);
+-    });
+-    const partidas = await rp.json();
+-    partidas.forEach(p => {
+-        const o = document.createElement('option');
+-        o.value = p.id;
+-        o.textContent = `${p.label} (saldo ${p.piezas_saldo} pzas, ${p.kg_saldo.toFixed(2)} kg)`;
+-        selPart.appendChild(o);
+-    });
+-});
+-{% endif %}
+ </script>
+ {% endblock %}
+ {% endblock %}
+diff --git a/templates/stock/list.html b/templates/stock/list.html
+index 1b92bf9..d63a61c 100644
+--- a/templates/stock/list.html
++++ b/templates/stock/list.html
+@@ -26,15 +26,15 @@
+     <div class="col-md-4">
+         <div class="card stat-card green">
+             <div class="card-body py-2">
+-                <div class="text-muted small">Sin Morley/RIBB (Kg)</div>
+-                <div class="h5 mb-0">{{ total_kg_sin_morley_ribb|number }}</div>
++                <div class="text-muted small">Morley/RIBB (Kg)</div>
++                <div class="h5 mb-0">{{ total_kg_morley_ribb|number }}</div>
+             </div>
+         </div>
+     </div>
+     <div class="col-md-4">
+         <div class="card stat-card orange">
+             <div class="card-body py-2">
+-                <div class="text-muted small">Piezas (sin Morley/RIBB)</div>
++                <div class="text-muted small">Piezas tela</div>
+                 <div class="h5 mb-0">{{ total_piezas }}</div>
+             </div>
+         </div>
+@@ -93,30 +93,30 @@
+                             </select>
+                         </form>
+                     </th>
+-                    <th style="min-width:140px">
++                    <th style="min-width:120px">
+                         <form method="GET" class="mb-0">
+                             {% if proveedor_id %}<input type="hidden" name="proveedor_id" value="{{ proveedor_id }}">{% endif %}
+                             {% if tipo_tela_sel %}<input type="hidden" name="tipo_tela" value="{{ tipo_tela_sel }}">{% endif %}
+-                            {% if cod_art_sel %}<input type="hidden" name="cod_art" value="{{ cod_art_sel }}">{% endif %}
++                            {% if color_sel %}<input type="hidden" name="color" value="{{ color_sel }}">{% endif %}
+                             {% if cod_color_sel %}<input type="hidden" name="cod_color" value="{{ cod_color_sel }}">{% endif %}
+-                            <select name="color" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+-                                <option value="">COLOR Ôû¥</option>
+-                                {% for c in colores %}
+-                                <option value="{{ c }}" {% if color_sel == c %}selected{% endif %}>{{ c }}</option>
++                            <select name="cod_art" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
++                                <option value="">COD ART Ôû¥</option>
++                                {% for c in cod_arts %}
++                                <option value="{{ c }}" {% if cod_art_sel == c %}selected{% endif %}>{{ c }}</option>
+                                 {% endfor %}
+                             </select>
+                         </form>
+                     </th>
+-                    <th style="min-width:120px">
++                    <th style="min-width:140px">
+                         <form method="GET" class="mb-0">
+                             {% if proveedor_id %}<input type="hidden" name="proveedor_id" value="{{ proveedor_id }}">{% endif %}
+                             {% if tipo_tela_sel %}<input type="hidden" name="tipo_tela" value="{{ tipo_tela_sel }}">{% endif %}
+-                            {% if color_sel %}<input type="hidden" name="color" value="{{ color_sel }}">{% endif %}
++                            {% if cod_art_sel %}<input type="hidden" name="cod_art" value="{{ cod_art_sel }}">{% endif %}
+                             {% if cod_color_sel %}<input type="hidden" name="cod_color" value="{{ cod_color_sel }}">{% endif %}
+-                            <select name="cod_art" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
+-                                <option value="">COD ART Ôû¥</option>
+-                                {% for c in cod_arts %}
+-                                <option value="{{ c }}" {% if cod_art_sel == c %}selected{% endif %}>{{ c }}</option>
++                            <select name="color" class="form-select form-select-sm border-0 fw-bold bg-transparent p-0" style="font-size:0.8rem" onchange="this.form.submit()">
++                                <option value="">COLOR Ôû¥</option>
++                                {% for c in colores %}
++                                <option value="{{ c }}" {% if color_sel == c %}selected{% endif %}>{{ c }}</option>
+                                 {% endfor %}
+                             </select>
+                         </form>
+@@ -163,8 +163,8 @@
+                     data-codart="{{ item.cod_art or '' }}" data-codcolor="{{ item.cod_color or '' }}"
+                     data-provid="{{ item.proveedor_id }}">
+                     <td><strong>{{ item.tipo_tela }}</strong></td>
+-                    <td>{{ item.color }}</td>
+                     <td>{{ item.cod_art or '-' }}</td>
++                    <td>{{ item.color }}</td>
+                     <td>{{ item.cod_color or '-' }}</td>
+                     <td>{{ item.proveedor_nombre }}</td>
+                     <td class="text-end {% if item.total_kg and item.total_kg < 0 %}text-danger{% endif %}">

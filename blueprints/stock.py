@@ -54,12 +54,12 @@ def stock():
     if cuenta_sel:
         query = query.filter(MovimientoTela.cuenta == cuenta_sel)
 
-    stock_items = query.order_by(MovimientoTela.tipo_tela, MovimientoTela.color).all()
+    stock_items = query.order_by(MovimientoTela.tipo_tela, MovimientoTela.cod_art, MovimientoTela.color).all()
 
     total_kg = sum((it.total_kg or 0) for it in stock_items)
-    total_kg_sin_morley_ribb = sum(
+    total_kg_morley_ribb = sum(
         (it.total_kg or 0) for it in stock_items
-        if (it.tipo_tela or '').upper() not in TELAS_SIN_PIEZAS
+        if (it.tipo_tela or '').upper() in TELAS_SIN_PIEZAS
     )
     total_piezas = sum(
         (it.total_piezas or 0) for it in stock_items
@@ -80,7 +80,7 @@ def stock():
                            cod_color_sel=cod_color,
                            cuenta_sel=cuenta_sel,
                            total_kg=total_kg,
-                           total_kg_sin_morley_ribb=total_kg_sin_morley_ribb,
+                           total_kg_morley_ribb=total_kg_morley_ribb,
                            total_piezas=total_piezas,
                            telas_sin_piezas=TELAS_SIN_PIEZAS)
 

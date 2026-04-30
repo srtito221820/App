@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 
-from models import db, Proveedor, MaestroTela, Partida
+from models import db, Proveedor, MaestroTela, Partida, MovimientoTela
 from utils import registrar_auditoria
 
 bp = Blueprint('maestro', __name__)
@@ -130,6 +130,18 @@ def api_maestro_detalle(id):
 def api_partidas_por_proveedor(proveedor_id):
     partidas = Partida.query.filter_by(proveedor_id=proveedor_id, activo=True) \
                             .order_by(Partida.fecha_alta.desc(), Partida.numero).all()
+    ids = [p.id for p in partidas]
+    cuenta_por_partida = {}
+    if ids:
+        rows = db.session.query(
+            MovimientoTela.partida_id, MovimientoTela.cuenta
+        ).filter(
+            MovimientoTela.partida_id.in_(ids),
+            MovimientoTela.movimiento == 'Ingreso',
+        ).order_by(MovimientoTela.fecha.asc(), MovimientoTela.id.asc()).all()
+        for pid, cuenta in rows:
+            if pid not in cuenta_por_partida and cuenta:
+                cuenta_por_partida[pid] = cuenta
     return jsonify([{
         'id': p.id,
         'numero': p.numero,
@@ -140,5 +152,6 @@ def api_partidas_por_proveedor(proveedor_id):
         'piezas_saldo': p.piezas_saldo(),
         'kg_totales': p.kg_totales or 0,
         'kg_saldo': p.kg_saldo(),
+        'cuenta': cuenta_por_partida.get(p.id, ''),
         'label': f"{p.numero} — {p.tipo_tela}/{p.color}",
     } for p in partidas])

@@ -200,6 +200,9 @@ def panel_operacion():
         if monto < 0:
             flash('El monto no puede ser negativo.', 'danger')
             return redirect(url_for('panel.panel', proveedor_id=proveedor_id, vista='resumen'))
+        if tipo_op == 'factura_anticipo' and parse_money(request.form.get('neto')) < 0:
+            flash('El neto no puede ser negativo.', 'danger')
+            return redirect(url_for('panel.panel', proveedor_id=proveedor_id, vista='resumen'))
         for i, ck in enumerate(cant_kgs):
             if parse_kg(ck) < 0:
                 flash(f'Los Kg no pueden ser negativos (linea {i+1}).', 'danger')
@@ -534,11 +537,34 @@ def panel_anticipo_editar(id):
         a.numero = request.form['numero']
         a.fecha = date.fromisoformat(request.form['fecha'])
         a.numero_factura = request.form.get('numero_factura', '')
-        a.monto = parse_money(request.form.get('monto'))
+        # El bruto se recalcula desde neto + IVA% para mantener coherencia.
+        # Si el form no manda neto (compatibilidad con flujos viejos), usa el monto crudo.
+        neto_raw = request.form.get('neto')
+        if neto_raw is not None and neto_raw != '':
+            neto = parse_money(neto_raw)
+            iva_alic = D(request.form.get('iva_alicuota') or '21')
+            a.neto = neto
+            a.iva_alicuota = iva_alic
+            a.monto = q2(neto * (D(1) + iva_alic / D(100)))
+        else:
+            a.monto = parse_money(request.form.get('monto'))
         a.cant_kg = parse_kg(request.form.get('cant_kg'))
         a.descripcion = request.form.get('descripcion', '')
         a.estado = request.form.get('estado', 'Abierto')
-        registrar_auditoria('Editar', 'Anticipo', a.id, f'Anticipo {a.numero} ${a.monto}')
+
+        # Mantener sincronizado el asiento en Cta. Cte. (Factura) cuando existe.
+        if a.numero_factura:
+            cc_factura = CuentaCorriente.query.filter_by(
+                proveedor_id=a.proveedor_id,
+                tipo='Factura',
+                numero_comprobante=a.numero_factura,
+            ).first()
+            if cc_factura:
+                cc_factura.debe = a.monto
+                cc_factura.fecha = a.fecha
+
+        registrar_auditoria('Editar', 'Anticipo', a.id,
+                            f'Anticipo {a.numero} neto ${a.neto} ({a.iva_alicuota}% IVA) bruto ${a.monto}')
         db.session.commit()
         flash(f'Anticipo "{a.numero}" actualizado.', 'success')
         return redirect(url_for('panel.panel', proveedor_id=a.proveedor_id, vista='anticipos'))

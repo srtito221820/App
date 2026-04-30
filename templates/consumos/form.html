@@ -7,8 +7,7 @@
     <h4 class="mb-0"><i class="bi bi-scissors"></i> Registrar Consumo</h4>
 </div>
 
-{% if partida_pre %}
-<div class="alert alert-info d-flex justify-content-between align-items-center">
+<div class="alert alert-info">
     <div>
         <i class="bi bi-boxes"></i>
         Consumiendo de la partida
@@ -19,18 +18,12 @@
             / <strong>{{ partida_pre.kg_saldo()|number }}</strong> kg
         </span>
     </div>
-    <a href="{{ url_for('consumos.consumo_nuevo') }}" class="btn btn-sm btn-outline-secondary">
-        <i class="bi bi-x"></i> Modo carga manual
-    </a>
 </div>
-{% endif %}
 
 <div class="card">
     <div class="card-body">
         <form method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            {% if partida_pre %}
-            {# Modo simplificado: proveedor/tela/partida preseleccionados y ocultos #}
             <input type="hidden" name="proveedor_id" value="{{ partida_pre.proveedor_id }}">
             <input type="hidden" name="partida_id" value="{{ partida_pre.id }}">
 
@@ -61,10 +54,13 @@
                 <div class="col-md-4 mb-3">
                     <label class="form-label">Cuenta</label>
                     <select name="cuenta" class="form-select">
-                        <option value="">—</option>
-                        <option value="JUMAF">JUMAF</option>
-                        <option value="JUMASA">JUMASA</option>
+                        <option value="" {% if not cuenta_pre %}selected{% endif %}>—</option>
+                        <option value="JUMAF" {% if cuenta_pre == 'JUMAF' %}selected{% endif %}>JUMAF</option>
+                        <option value="JUMASA" {% if cuenta_pre == 'JUMASA' %}selected{% endif %}>JUMASA</option>
                     </select>
+                    {% if cuenta_pre %}
+                    <div class="form-text">Tomada del ingreso de la partida.</div>
+                    {% endif %}
                 </div>
                 <div class="col-md-4 mb-3">
                     <label class="form-label">OP / Corte</label>
@@ -75,67 +71,6 @@
                     <textarea name="observaciones" class="form-control" rows="2"></textarea>
                 </div>
             </div>
-
-            {% else %}
-            {# Modo manual (sin preseleccion) #}
-            <div class="row">
-                <div class="col-md-3 mb-3">
-                    <label class="form-label">Fecha *</label>
-                    <input type="date" name="fecha" class="form-control" required
-                           value="{{ today_iso or '' }}">
-                </div>
-                <div class="col-md-5 mb-3">
-                    <label class="form-label">Proveedor *</label>
-                    <select name="proveedor_id" id="proveedor_id" class="form-select" required>
-                        <option value="">Seleccionar...</option>
-                        {% for p in proveedores %}
-                        <option value="{{ p.id }}">{{ p.nombre }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-4 mb-3">
-                    <label class="form-label">Cuenta</label>
-                    <select name="cuenta" class="form-select">
-                        <option value="">—</option>
-                        <option value="JUMAF">JUMAF</option>
-                        <option value="JUMASA">JUMASA</option>
-                    </select>
-                </div>
-
-                <div class="col-md-6 mb-3">
-                    <label class="form-label">Tela (Maestro)</label>
-                    <select id="maestro_tela_id" name="maestro_tela_id" class="form-select">
-                        <option value="">— Seleccione proveedor primero —</option>
-                    </select>
-                </div>
-
-                <div class="col-md-6 mb-3">
-                    <label class="form-label">Partida</label>
-                    <select id="partida_id" name="partida_id" class="form-select">
-                        <option value="">— Seleccione proveedor primero —</option>
-                    </select>
-                    <div class="form-text">Tipica opcion: descargar contra la partida de la que proviene la tela.</div>
-                </div>
-
-                <div class="col-md-3 mb-3">
-                    <label class="form-label">Kg consumidos *</label>
-                    <input type="number" name="cant_kg" class="form-control" step="0.01" min="0.01" required>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label">Piezas</label>
-                    <input type="number" name="piezas" class="form-control" min="0" value="0">
-                </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label">OP / Corte</label>
-                    <input type="text" name="op" class="form-control" placeholder="Ej: OP-1234">
-                </div>
-
-                <div class="col-md-12 mb-3">
-                    <label class="form-label">Observaciones</label>
-                    <textarea name="observaciones" class="form-control" rows="2"></textarea>
-                </div>
-            </div>
-            {% endif %}
 
             <hr>
             <button class="btn btn-danger"><i class="bi bi-scissors"></i> Descontar Stock</button>
@@ -146,39 +81,10 @@
 
 {% block scripts %}
 <script>
-// Setear fecha por defecto
 document.addEventListener('DOMContentLoaded', () => {
     const inp = document.querySelector('input[name=fecha]');
     if (inp && !inp.value) inp.value = new Date().toISOString().slice(0, 10);
 });
-
-{% if not partida_pre %}
-document.getElementById('proveedor_id').addEventListener('change', async function() {
-    const pid = this.value;
-    const selTela = document.getElementById('maestro_tela_id');
-    const selPart = document.getElementById('partida_id');
-    selTela.innerHTML = '<option value="">— Carga manual —</option>';
-    selPart.innerHTML = '<option value="">— Sin partida —</option>';
-    if (!pid) return;
-    const [rt, rp] = await Promise.all([
-        fetch(`/api/maestro/por-proveedor/${pid}`),
-        fetch(`/api/partidas/por-proveedor/${pid}`),
-    ]);
-    const telas = await rt.json();
-    telas.forEach(t => {
-        const o = document.createElement('option');
-        o.value = t.id; o.textContent = t.label;
-        selTela.appendChild(o);
-    });
-    const partidas = await rp.json();
-    partidas.forEach(p => {
-        const o = document.createElement('option');
-        o.value = p.id;
-        o.textContent = `${p.label} (saldo ${p.piezas_saldo} pzas, ${p.kg_saldo.toFixed(2)} kg)`;
-        selPart.appendChild(o);
-    });
-});
-{% endif %}
 </script>
 {% endblock %}
 {% endblock %}
